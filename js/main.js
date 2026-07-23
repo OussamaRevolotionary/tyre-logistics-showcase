@@ -58,7 +58,7 @@ window.TF = window.TF || {};
 
         // Build logistics flow
         if (TF.logistics && TF.logistics.buildLogistics) {
-            TF.logistics.buildLogistics(scene, TF.warehouse ? TF.warehouse.warehouseGroup : null);
+            TF.logistics.buildLogistics(scene);
         }
 
         // Initial hero tyre
@@ -102,28 +102,18 @@ window.TF = window.TF || {};
         fillLight.position.set(-60, 40, 60);
         scene.add(fillLight);
 
-        // Aisle accent glow
+        // Cool aisle accent glow (cheap, no shadows)
         const accentA = new THREE.PointLight(0x38bdf8, 0.6, 320, 2);
         accentA.position.set(0, 55, -140);
         scene.add(accentA);
         const accentB = new THREE.PointLight(0x38bdf8, 0.45, 260, 2);
         accentB.position.set(0, 40, -250);
         scene.add(accentB);
-
-        // QC area green accent
-        const qcLight = new THREE.PointLight(0x22c55e, 0.4, 60, 2);
-        qcLight.position.set(20, 15, -18);
-        scene.add(qcLight);
-
-        // Dock area warm accent
-        const dockLight = new THREE.PointLight(0xfbbf24, 0.3, 80, 2);
-        dockLight.position.set(72, 20, 55);
-        scene.add(dockLight);
     }
 
     // ---------- Ambient Particles ----------
     function createParticles() {
-        const count = 600;
+        const count = 150;
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
         const velocities = new Float32Array(count * 3);
@@ -254,39 +244,10 @@ window.TF = window.TF || {};
         // Ambient particles
         updateParticles(dt);
 
-        // Animate warehouse station effects
-        animateStations(dt);
-
         // HUD
         if (TF.ui) TF.ui.updateHUD();
 
         renderer.render(scene, camera);
-    }
-
-    // ---------- Station Animations (continuous) ----------
-    let stationTime = 0;
-    function animateStations(dt) {
-        stationTime += dt;
-        if (!TF.warehouse) return;
-
-        // QC scanner beam oscillation
-        if (TF.warehouse.qcBeam) {
-            TF.warehouse.qcBeam.position.x = 20 + Math.sin(stationTime * 3) * 6;
-            TF.warehouse.qcBeam.material.opacity = 0.3 + Math.sin(stationTime * 8) * 0.15;
-        }
-
-        // Security gate beacon rotation
-        if (TF.warehouse.gateBeacon) {
-            TF.warehouse.gateBeacon.rotation.y += dt * 4;
-            // Pulsing color (amber <-> bright amber)
-            const pulse = 0.6 + Math.sin(stationTime * 5) * 0.4;
-            TF.warehouse.gateBeacon.material.opacity = pulse;
-        }
-
-        // Wrap ring slow rotation when idle
-        if (TF.warehouse.wrapRing) {
-            TF.warehouse.wrapRing.rotation.y += dt * 0.5;
-        }
     }
 
     // ---------- Resize ----------
