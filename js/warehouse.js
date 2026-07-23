@@ -400,8 +400,8 @@ window.TF = window.TF || {};
         cSign.position.set(0, 32, -20.5);
         custGroup.add(cSign);
         
-        const padGeo = new THREE.BoxGeometry(40, 1, 30);
-        const cPad = new THREE.Mesh(padGeo, new THREE.MeshStandardMaterial({ color: 0x64748b }));
+        const cPadGeo = new THREE.BoxGeometry(40, 1, 30);
+        const cPad = new THREE.Mesh(cPadGeo, new THREE.MeshStandardMaterial({ color: 0x64748b }));
         cPad.position.set(0, 0.5, -35);
         custGroup.add(cPad);
         

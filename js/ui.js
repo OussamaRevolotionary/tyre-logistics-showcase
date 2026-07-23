@@ -106,6 +106,42 @@ window.TF = window.TF || {};
             });
         }
 
+        // Make control panel draggable
+        if (els.controlPanel) {
+            const header = document.querySelector('.panel-title');
+            if (header) {
+                header.style.cursor = 'grab';
+                let isDragging = false;
+                let offsetX = 0, offsetY = 0;
+
+                header.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    header.style.cursor = 'grabbing';
+                    const rect = els.controlPanel.getBoundingClientRect();
+                    offsetX = e.clientX - rect.left;
+                    offsetY = e.clientY - rect.top;
+                    els.controlPanel.style.transition = 'none'; // Disable transition for smooth drag
+                    e.preventDefault();
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    els.controlPanel.style.left = (e.clientX - offsetX) + 'px';
+                    els.controlPanel.style.top = (e.clientY - offsetY) + 'px';
+                    els.controlPanel.style.right = 'auto'; // Disable CSS right property
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        header.style.cursor = 'grab';
+                        // Re-enable transition for hide/show, but don't transition left/top
+                        els.controlPanel.style.transition = 'opacity var(--transition-med)';
+                    }
+                });
+            }
+        }
+
         // Tour restart
         if (els.btnTourRestart) {
             els.btnTourRestart.addEventListener('click', () => {
