@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TyreFlow — Smart Tire Warehouse & Supply Chain</title>
+    <meta name="description" content="End-to-end tire supply chain showcase — automated ASRS warehouse, QC inspection, labeling, palletizing, and GPS-tracked delivery. Real-time 3D simulation.">
+    <link rel="stylesheet" href="css/styles.css">
+
+    <!-- Three.js Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/OBJExporter.js"></script>
+</head>
+<body>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">Initializing Scene...</div>
+    </div>
+
+    <!-- ============================================================
+         LANDING OVERLAY
+         ============================================================ -->
+    <div id="landing-overlay">
+        <div class="landing-content">
+            <div class="landing-badge">
+                <span class="dot"></span>
+                LIVE SIMULATION
+            </div>
+            <h1 class="landing-title">End-to-End Tire Supply Chain</h1>
+            <p class="landing-subtitle">
+                From automated high-bay storage to your customer's door — full traceability,
+                robotic palletizing, QC inspection, and GPS-tracked delivery in one integrated platform.
+            </p>
+            <div class="landing-stats">
+                <div class="landing-stat">
+                    <div class="landing-stat-value">18K+</div>
+                    <div class="landing-stat-label">Storage Positions</div>
+                </div>
+                <div class="landing-stat">
+                    <div class="landing-stat-value">9</div>
+                    <div class="landing-stat-label">Checkpoints</div>
+                </div>
+                <div class="landing-stat">
+                    <div class="landing-stat-value">100%</div>
+                    <div class="landing-stat-label">Traceability</div>
+                </div>
+                <div class="landing-stat">
+                    <div class="landing-stat-value">6</div>
+                    <div class="landing-stat-label">PCR Categories</div>
+                </div>
+            </div>
+            <div class="landing-buttons">
+                <button id="btn-start-tour" class="btn-primary">▶ Start Guided Tour</button>
+                <button id="btn-explore" class="btn-secondary">Explore Freely</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         TOP NAV BAR
+         ============================================================ -->
+    <div id="top-bar" class="top-bar hidden">
+        <div class="brand">
+            <div class="brand-icon">🛞</div>
+            <div>
+                <div class="brand-name">TyreFlow</div>
+                <div class="brand-tag">Supply Chain Logistics</div>
+            </div>
+        </div>
+        <div class="top-actions">
+            <button id="btn-tour-restart" class="btn-tour-restart">
+                🎬 Replay Tour
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         TOUR INFO CARD
+         ============================================================ -->
+    <div id="tour-card" class="tour-card">
+        <div class="tour-card-header">
+            <span id="tour-step-badge" class="tour-step-badge">STOP 1</span>
+            <span id="tour-step-counter" class="tour-step-counter">1 / 9</span>
+        </div>
+        <div id="tour-card-title" class="tour-card-title">—</div>
+        <div id="tour-card-desc" class="tour-card-desc">—</div>
+        <div id="tour-card-metrics" class="tour-card-metrics"></div>
+        <div class="tour-controls">
+            <button id="tour-btn-skip" class="tour-btn tour-btn-skip">Skip Tour</button>
+            <button id="tour-btn-next" class="tour-btn tour-btn-next">Next →</button>
+        </div>
+        <div id="tour-progress" class="tour-progress"></div>
+    </div>
+
+    <!-- ============================================================
+         CONTROL PANEL (right — tyre generator)
+         ============================================================ -->
+    <div id="control-panel" class="control-panel hidden">
+        <div class="panel-title">Pro Tyre Generator</div>
+        <p class="panel-subtitle">Parametric mesh with Aures tread pattern</p>
+
+        <div class="slider-container">
+            <div class="slider-label"><span>Overall Radius</span> <span id="val-radius">10.0</span></div>
+            <input type="range" id="param-radius" min="6" max="15" step="0.5" value="10">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label"><span>Tyre Width</span> <span id="val-width">8.0</span></div>
+            <input type="range" id="param-width" min="4" max="12" step="0.5" value="8">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label"><span>Rim Size (Inner)</span> <span id="val-rim">5.5</span></div>
+            <input type="range" id="param-rim" min="3" max="10" step="0.5" value="5.5">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label"><span>Tread Depth</span> <span id="val-tread">0.35</span></div>
+            <input type="range" id="param-tread" min="0.1" max="0.8" step="0.05" value="0.35">
+        </div>
+
+        <div class="slider-container">
+            <div class="slider-label"><span>Tread Density</span> <span id="val-count">65</span></div>
+            <input type="range" id="param-count" min="30" max="100" step="1" value="65">
+        </div>
+
+        <button id="export-btn" class="btn-export">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Export to CAD (.obj)
+        </button>
+        <p class="export-hint">Downloads solid manifold mesh for SolidWorks, Fusion360, Blender</p>
+    </div>
+
+    <!-- ============================================================
+         LIVE HUD (bottom-left dashboard)
+         ============================================================ -->
+    <div id="flow-hud" class="hidden">
+        <div class="hud-header">
+            <span class="hud-title">SUPPLY CHAIN · LIVE FLOW</span>
+            <span class="hud-live-badge"><span class="dot"></span> LIVE</span>
+        </div>
+
+        <!-- Pipeline progress tracker -->
+        <div id="pipeline" class="pipeline"></div>
+
+        <!-- Current phase text -->
+        <div id="flow-phase">Initializing…</div>
+
+        <!-- KPI counters -->
+        <div class="kpi-row">
+            <div class="kpi-item">
+                <div id="kpi-tyres" class="kpi-value">0</div>
+                <div class="kpi-label">Tyres</div>
+            </div>
+            <div class="kpi-item">
+                <div id="kpi-pallets" class="kpi-value">0</div>
+                <div class="kpi-label">Pallets</div>
+            </div>
+            <div class="kpi-item">
+                <div id="kpi-trucks" class="kpi-value">0</div>
+                <div class="kpi-label">Dispatched</div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="hud-legend">
+            <span><i style="background:#22c55e"></i>Released</span>
+            <span><i style="background:#f59e0b"></i>In transit</span>
+            <span><i style="background:#22d3ee"></i>Idle</span>
+            <span><i style="background:#ef4444"></i>Alert</span>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         SCRIPTS (load order matters)
+         ============================================================ -->
+    <script src="js/tyre.js"></script>
+    <script src="js/warehouse.js"></script>
+    <script src="js/logistics.js"></script>
+    <script src="js/tour.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+
+</body>
+</html>
