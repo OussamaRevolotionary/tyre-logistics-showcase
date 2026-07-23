@@ -195,6 +195,8 @@ window.TF = window.TF || {};
         const totalUprights = rackXs.length * (bays + 1) * 2;
         const uprightGeo = new THREE.BoxGeometry(2, totalHeight, 2);
         const uprightsMesh = new THREE.InstancedMesh(uprightGeo, uprightMat, totalUprights);
+        uprightsMesh.castShadow = false;
+        uprightsMesh.receiveShadow = false;
         
         let uprightIdx = 0;
         const dummy = new THREE.Object3D();
@@ -251,8 +253,8 @@ window.TF = window.TF || {};
         
         // Instanced Tyres
         if (TF.tyre && TF.tyre.makeStorageTyreGeo && TF.tyre.rubberMaterial) {
-            const pcrSize = TF.tyre.pcrSizes ? TF.tyre.pcrSizes[0] : { width: 225, aspect: 45, rim: 18 };
-            const storageTyreGeo = TF.tyre.makeStorageTyreGeo(pcrSize);
+            const pcrSize = TF.tyre.pcrSizes ? TF.tyre.pcrSizes[0] : { width: 225, aspect: 45, rim: 18, r: 10.5, w: 7.0 };
+            const storageTyreGeo = TF.tyre.makeStorageTyreGeo(pcrSize.r || 10.5, pcrSize.w || 7.0, pcrSize.rim || 6.0);
             const rubberMat = TF.tyre.rubberMaterial;
             
             // Estimate capacity
@@ -260,6 +262,8 @@ window.TF = window.TF || {};
             const totalTyres = rackXs.length * bays * numLevels * tyresPerBay;
             
             const tyreMesh = new THREE.InstancedMesh(storageTyreGeo, rubberMat, totalTyres);
+            tyreMesh.castShadow = false;
+            tyreMesh.receiveShadow = false;
             let tIdx = 0;
             
             rackXs.forEach(xPos => {
@@ -357,7 +361,7 @@ window.TF = window.TF || {};
 
         // --- 7. NEW: Security Gate ---
         const gateGroup = new THREE.Group();
-        gateGroup.position.set(72, 0, 85);
+        gateGroup.position.set(72, 0, 130);
         
         const gatePost = new THREE.Mesh(new THREE.BoxGeometry(1.5, 8, 1.5), safetyMat);
         gatePost.position.set(12, 4, 0);
@@ -454,7 +458,8 @@ window.TF = window.TF || {};
 
         // --- 11. Enhanced Customer Building ---
         const custGroup = new THREE.Group();
-        custGroup.position.set(-80, 0, 100);
+        custGroup.position.set(-215, 0, 190);
+        custGroup.rotation.y = Math.PI / 2; // Face +X (incoming truck)
         
         const cBGeo = new THREE.BoxGeometry(60, 40, 40);
         const cBMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 });

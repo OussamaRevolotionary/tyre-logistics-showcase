@@ -19,17 +19,17 @@
         palletBase: new THREE.Vector3(72, 0, 22),
         WRAP: new THREE.Vector3(72, 0, 35),                // stretch wrap station  
         DOCK: new THREE.Vector3(72, 0, 55),                // loading dock
-        GATE: new THREE.Vector3(72, 0, 85),                // security gate
-        TRUCK: new THREE.Vector3(72, 0, 90),               // truck position
+        TRUCK: new THREE.Vector3(72, 0, 90),               // parked truck position (cab is at +25)
+        GATE: new THREE.Vector3(72, 0, 130),               // security gate (in front of truck)
     };
 
     // Delivery route waypoints
     const ROUTE = [
-        new THREE.Vector3(72, 0, 110),
-        new THREE.Vector3(-30, 0, 120),
-        new THREE.Vector3(-170, 0, 128)
+        new THREE.Vector3(72, 0, 170),
+        new THREE.Vector3(-30, 0, 180),
+        new THREE.Vector3(-170, 0, 188)
     ];
-    const CUSTOMER = new THREE.Vector3(-215, 0, 130);
+    const CUSTOMER = new THREE.Vector3(-215, 0, 190);
 
     // -------------------------------------------------------------------------
     // Shared Materials
@@ -97,6 +97,7 @@
 
     function faceDir(obj, from, to, dt) {
         if (from.distanceToSquared(to) < 0.001) return;
+        // Atan2(dx, dz) gives angle from +Z axis in Three.js when looking down -Y.
         const targetAngle = Math.atan2(to.x - from.x, to.z - from.z);
         
         // Simple smoothing for angle wrapping
@@ -299,20 +300,7 @@
         logi.activeTruck.position.copy(WAYPOINTS.TRUCK);
         logi.sceneGroup.add(logi.activeTruck);
 
-        // 7. Customer Building
-        const custGroup = new THREE.Group();
-        custGroup.position.copy(CUSTOMER);
-        
-        const building = new THREE.Mesh(new THREE.BoxGeometry(60, 40, 50), truckBoxMat);
-        building.position.y = 20;
-        custGroup.add(building);
-        
-        const roof = new THREE.Mesh(new THREE.ConeGeometry(50, 15, 4), new THREE.MeshStandardMaterial({color: 0x166534}));
-        roof.rotation.y = Math.PI/4;
-        roof.position.y = 47.5;
-        custGroup.add(roof);
-
-        logi.sceneGroup.add(custGroup);
+        // 7. Customer Building is in warehouse.js
 
         scene.add(logi.sceneGroup);
     }
