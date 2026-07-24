@@ -8,8 +8,10 @@ window.TF = window.TF || {};
 (function() {
     'use strict';
 
-    // TODO: swap to a Calendly / booking link when live.
-    const DEMO_LINK = 'mailto:oussamabdi19@gmail.com?subject=TyreFlow%20Demo';
+    // Published n8n webhooks (see _BUILD_CONTRACT.md for the workflows behind these).
+    const DEMO_INTAKE_URL = 'https://oussama19.app.n8n.cloud/webhook/tyreflow-demo-intake';
+    const CHATBOT_URL     = 'https://oussama19.app.n8n.cloud/webhook/tyreflow-chatbot';
+    const CHAT_SESSION_KEY = 'tyreflowChatSessionId';
 
     // Pipeline labels map to logistics pipeline index 0-8
     const PIPELINE_LABELS = ['ASRS', 'QC', 'Conv', 'Label', 'Stack', 'Wrap', 'Load', 'Ship', 'Done'];
@@ -56,14 +58,30 @@ window.TF = window.TF || {};
             pipeline:       document.getElementById('pipeline'),
             kpiTyres:       document.getElementById('kpi-tyres'),
             kpiPallets:     document.getElementById('kpi-pallets'),
-            kpiTrucks:      document.getElementById('kpi-trucks')
+            kpiTrucks:      document.getElementById('kpi-trucks'),
+
+            demoModal:        document.getElementById('demo-modal'),
+            demoForm:         document.getElementById('demo-form'),
+            demoFormStatus:   document.getElementById('demo-form-status'),
+            demoFormSubmit:   document.getElementById('demo-form-submit'),
+            demoNameInput:    document.getElementById('demo-name'),
+
+            chatWidget:     document.getElementById('chat-widget'),
+            chatFab:        document.getElementById('chat-fab'),
+            chatPanel:      document.getElementById('chat-panel'),
+            chatPanelClose: document.getElementById('chat-panel-close'),
+            chatMessages:   document.getElementById('chat-messages'),
+            chatForm:       document.getElementById('chat-form'),
+            chatInput:      document.getElementById('chat-input'),
+            chatSend:       document.getElementById('chat-send')
         };
 
         buildPipeline();
         buildTimeline();
-        wireDemoLinks();
         wireEvents();
         wireTourCallbacks();
+        wireDemoModal();
+        wireChatWidget();
     }
 
     function buildPipeline() {
@@ -96,13 +114,12 @@ window.TF = window.TF || {};
         }
     }
 
-    function wireDemoLinks() {
-        [els.btnBookDemo, els.btnBookDemoTop, els.tourCta].forEach(a => {
-            if (a) a.setAttribute('href', DEMO_LINK);
-        });
-    }
-
     function wireEvents() {
+        // Book a Demo (landing, top bar, tour CTA) -> open the demo modal
+        [els.btnBookDemo, els.btnBookDemoTop, els.tourCta].forEach(btn => {
+            if (btn) btn.addEventListener('click', () => openDemoModal(btn));
+        });
+
         // Landing: Start Executive Tour -> cinematic auto-play
         if (els.btnStartTour) {
             els.btnStartTour.addEventListener('click', () => {
@@ -182,11 +199,14 @@ window.TF = window.TF || {};
         if (els.topBar)       els.topBar.classList.remove('hidden');
         if (els.controlPanel) els.controlPanel.classList.remove('hidden');
         if (els.flowHud)      els.flowHud.classList.remove('hidden');
+        if (els.chatWidget)   els.chatWidget.classList.remove('hidden');
     }
     function hideExplorationUI() {
         if (els.topBar)       els.topBar.classList.add('hidden');
         if (els.controlPanel) els.controlPanel.classList.add('hidden');
         if (els.flowHud)      els.flowHud.classList.add('hidden');
+        if (els.chatWidget)   els.chatWidget.classList.add('hidden');
+        closeChatPanel();
     }
 
     function enterTourMode() {
@@ -271,6 +291,192 @@ window.TF = window.TF || {};
     }
     function hideLoading() {
         if (els.loadingOverlay) els.loadingOverlay.style.display = 'none';
+    }
+
+    /* ---------- Book-a-Demo modal ---------- */
+    let demoLastFocused = null;
+
+    function wireDemoModal() {
+        if (!els.demoModal) return;
+
+        els.demoModal.querySelectorAll('[data-demo-close]').forEach(el => {
+            el.addEventListener('click', () => closeDemoModal());
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && els.demoModal.classList.contains('open')) closeDemoModal();
+        });
+        if (els.demoForm) els.demoForm.addEventListener('submit', handleDemoFormSubmit);
+    }
+
+    function openDemoModal(triggerEl) {
+        if (!els.demoModal) return;
+        demoLastFocused = triggerEl || document.activeElement;
+        els.demoModal.classList.add('open');
+        setDemoStatus('', null);
+        window.setTimeout(() => { if (els.demoNameInput) els.demoNameInput.focus(); }, 50);
+    }
+
+    function closeDemoModal() {
+        if (!els.demoModal) return;
+        els.demoModal.classList.remove('open');
+        if (demoLastFocused && demoLastFocused.focus) demoLastFocused.focus();
+    }
+
+    function setDemoStatus(text, kind) {
+        if (!els.demoFormStatus) return;
+        els.demoFormStatus.textContent = text || '';
+        els.demoFormStatus.classList.toggle('success', kind === 'success');
+        els.demoFormStatus.classList.toggle('error', kind === 'error');
+    }
+
+    async function handleDemoFormSubmit(e) {
+        e.preventDefault();
+        if (!els.demoForm) return;
+
+        const fd = new FormData(els.demoForm);
+        const payload = {
+            name: (fd.get('name') || '').toString().trim(),
+            email: (fd.get('email') || '').toString().trim(),
+            company: (fd.get('company') || '').toString().trim(),
+            jobTitle: (fd.get('jobTitle') || '').toString().trim(),
+            phone: (fd.get('phone') || '').toString().trim(),
+            message: (fd.get('message') || '').toString().trim(),
+            source: 'tyreflow-web-form',
+            sessionId: getChatSessionId()
+        };
+
+        if (!payload.name || !payload.email) {
+            setDemoStatus('Please fill in your name and business email.', 'error');
+            return;
+        }
+
+        if (els.demoFormSubmit) { els.demoFormSubmit.disabled = true; els.demoFormSubmit.classList.add('pending'); }
+        setDemoStatus('Sending…', null);
+
+        try {
+            const res = await fetch(DEMO_INTAKE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (res.ok && data.success !== false) {
+                setDemoStatus(data.message || 'Thanks — our team will be in touch shortly.', 'success');
+                els.demoForm.reset();
+                window.setTimeout(closeDemoModal, 2200);
+            } else {
+                setDemoStatus(data.error || 'Something went wrong — please try again.', 'error');
+            }
+        } catch (err) {
+            setDemoStatus('Network error — please try again or email oussama.g@oussamalabs.com.', 'error');
+        } finally {
+            if (els.demoFormSubmit) { els.demoFormSubmit.disabled = false; els.demoFormSubmit.classList.remove('pending'); }
+        }
+    }
+
+    /* ---------- Chat widget (TyreFlow Assistant) ---------- */
+    let chatSessionId = null;
+    let chatGreeted = false;
+
+    function getChatSessionId() {
+        if (chatSessionId) return chatSessionId;
+        try {
+            chatSessionId = window.sessionStorage.getItem(CHAT_SESSION_KEY);
+        } catch (err) { chatSessionId = null; }
+        if (!chatSessionId) {
+            chatSessionId = (window.crypto && window.crypto.randomUUID)
+                ? window.crypto.randomUUID()
+                : 'sess-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+            try { window.sessionStorage.setItem(CHAT_SESSION_KEY, chatSessionId); } catch (err) { /* storage unavailable */ }
+        }
+        return chatSessionId;
+    }
+
+    function wireChatWidget() {
+        if (!els.chatFab) return;
+        els.chatFab.addEventListener('click', toggleChatPanel);
+        if (els.chatPanelClose) els.chatPanelClose.addEventListener('click', closeChatPanel);
+        if (els.chatForm) els.chatForm.addEventListener('submit', handleChatSubmit);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && els.chatPanel && els.chatPanel.classList.contains('open')) closeChatPanel();
+        });
+    }
+
+    function toggleChatPanel() {
+        if (!els.chatPanel) return;
+        if (els.chatPanel.classList.contains('open')) closeChatPanel();
+        else openChatPanel();
+    }
+
+    function openChatPanel() {
+        if (!els.chatPanel) return;
+        els.chatPanel.classList.add('open');
+        if (els.chatFab) els.chatFab.setAttribute('aria-expanded', 'true');
+        if (!chatGreeted) {
+            chatGreeted = true;
+            appendChatMessage('assistant',
+                'Hi — I’m the TyreFlow Assistant, built by OussamaLabs. Ask me what this platform can do, ' +
+                'or what OussamaLabs can build for your operation.');
+        }
+        window.setTimeout(() => { if (els.chatInput) els.chatInput.focus(); }, 50);
+    }
+
+    function closeChatPanel() {
+        if (!els.chatPanel) return;
+        els.chatPanel.classList.remove('open');
+        if (els.chatFab) els.chatFab.setAttribute('aria-expanded', 'false');
+    }
+
+    function appendChatMessage(role, text) {
+        if (!els.chatMessages) return null;
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-msg chat-msg--' + role;
+        bubble.textContent = text;
+        els.chatMessages.appendChild(bubble);
+        els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+        return bubble;
+    }
+
+    function showTyping() {
+        if (!els.chatMessages) return null;
+        const typing = document.createElement('div');
+        typing.className = 'chat-msg chat-msg--typing';
+        typing.innerHTML = '<span class="chat-typing-dot"></span><span class="chat-typing-dot"></span><span class="chat-typing-dot"></span>';
+        els.chatMessages.appendChild(typing);
+        els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+        return typing;
+    }
+
+    async function handleChatSubmit(e) {
+        e.preventDefault();
+        if (!els.chatInput) return;
+        const text = els.chatInput.value.trim();
+        if (!text) return;
+
+        appendChatMessage('user', text);
+        els.chatInput.value = '';
+        els.chatInput.disabled = true;
+        if (els.chatSend) els.chatSend.disabled = true;
+        const typingEl = showTyping();
+
+        try {
+            const res = await fetch(CHATBOT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: getChatSessionId(), chatInput: text })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (typingEl) typingEl.remove();
+            appendChatMessage('assistant', (data && data.output) || 'Sorry, I didn’t catch that — could you rephrase?');
+        } catch (err) {
+            if (typingEl) typingEl.remove();
+            appendChatMessage('error', 'Connection hiccup — please try again, or email oussama.g@oussamalabs.com.');
+        } finally {
+            els.chatInput.disabled = false;
+            if (els.chatSend) els.chatSend.disabled = false;
+            els.chatInput.focus();
+        }
     }
 
     /* ---------- Live HUD (per frame) ---------- */

@@ -459,3 +459,62 @@ files. No `CONTRACT-CHANGE-REQUEST` — the DOM/API/palette were all buildable a
   therefore shows during that final dwell, and the persistent top-bar CTA covers Explore mode.
 - ui.js reads `data.title/desc/metrics` from `getStopData(i)`/`onStopArrive` — Agent B's shape
   matches. Not verified in-browser per shared-port instruction; verified by static review.
+
+---
+
+## ADDENDUM — Book-a-Demo modal + TyreFlow Assistant chatbot (2026-07-24)
+
+The gold CTAs (`#btn-book-demo`, `#btn-book-demo-top`, `#tour-cta`) no longer point at a `mailto:`
+placeholder. They are now real `<button>`s that open `#demo-modal`, and a new persistent chat
+widget (`#chat-widget` / `#chat-fab` / `#chat-panel`) was added, hidden during Tour mode and the
+landing screen, shown during Explore mode (same show/hideExplorationUI toggle as the control panel).
+Both post to **published, live-tested** n8n webhooks — no more placeholders.
+
+**n8n (project "Futuristic Life", instance oussama19.app.n8n.cloud):**
+| Workflow | id | Webhook (published) |
+|---|---|---|
+| OussamaLabs — TyreFlow Demo Intake | `hzNQ962LgjCCvI19` | `https://oussama19.app.n8n.cloud/webhook/tyreflow-demo-intake` |
+| OussamaLabs — TyreFlow Assistant (Chatbot) | `hlPQO2TmseD9C67S` | `https://oussama19.app.n8n.cloud/webhook/tyreflow-chatbot` |
+
+**Demo Intake workflow:** Webhook → normalize (name/email/company/jobTitle/phone/message/source/
+sessionId, with `??` fallbacks for both `body.*` and top-level shapes) → IF name+email non-empty →
+Google Sheets append (spreadsheet `1xbOp7fIdTYzKYHJ4SewYyuiR0qqKCH5Ky44WYF5cnWY`, tab **Leads**,
+gid `443988587`, credential "Google Sheets oussama19") → Gmail notify `oussama.g@oussamalabs.com`
+→ Gmail auto-reply to the submitter (credential "oussamalabs") → Respond 200 `{success,message}`;
+false branch → Respond 400 `{success:false,error}`. All three side-effect nodes are
+`onError:'continueRegularOutput'` so one hiccup doesn't block the others or the response. Gotcha
+hit while building: the Google Sheets node's `defineBelow` column-mapper throws "Could not retrieve
+the column data" on a **completely empty** sheet (no header row to match against) — seed a first
+row with `autoMapInputData` instead (it creates the header row from the incoming item's keys), then
+switch production nodes to `autoMapInputData` too so header names stay in sync.
+
+**Chatbot workflow:** Webhook → normalize `{sessionId, chatInput}` → AI Agent "TyreFlow Assistant"
+(OpenAI Chat Model, credential "Hassen API", model `gpt-5-mini`; Simple Memory keyed on
+`nodeJson(webhookTrigger,'body.sessionId')`; one tool, **Log Qualified Lead** — an HTTP Request
+Tool that POSTs `fromAi()`-populated name/email/company/jobTitle/message + `source:'tyreflow-
+chatbot'` + the same sessionId straight at the Demo Intake webhook above, so a lead captured
+mid-conversation lands in the identical Google Sheet) → Respond `{output}`. System prompt encodes
+the OussamaLabs identity brief (Industrial Tech Translator; **never names the tyre employer** —
+"a major North African PCR tyre manufacturer" only; never reveals the underlying model/provider;
+calls the lead tool at most once per conversation, only once genuine interest + contact info is
+given). Verified live: (1) a capability question with no contact info correctly answers without
+calling the tool; (2) a message with name/email/company correctly triggers exactly one tool call
+that lands a real row + real notify/auto-reply emails through the Demo Intake workflow.
+
+**Frontend (`index.html`, `css/styles.css`, `js/ui.js`):** `DEMO_INTAKE_URL`/`CHATBOT_URL` consts
+in `ui.js`. Modal: name/email required, company/jobTitle/phone/message optional, fetch POST JSON,
+pending/success/error states on `#demo-form-status`, auto-close 2.2s after success. Chat: FAB +
+panel, session id in `sessionStorage` (`tyreflowChatSessionId`, reused by both the chat and the
+demo form so a visitor's two touchpoints tie to one id), typing-indicator bubble, canned greeting
+on first open. New z-index: `.demo-modal` 300 (above loading's 200 — it can be opened from any
+mode incl. mid-tour), `.chat-widget` 40. Positioning: a `.landing-credit` line under the landing
+buttons ("Built by OussamaLabs…") plus the chatbot's own answers carry the pitch — this demo is
+proof of the ASRS-to-customer traceability capability being sold. All contact points now use
+`oussama.g@oussamalabs.com` (the professional address), not the personal gmail placeholder.
+
+**Verified live in-browser** (not just via n8n test executions): loaded the integrated site,
+clicked `#btn-book-demo`, filled and submitted the real form (fetch succeeded, success message,
+2.2s auto-close, form reset confirmed), switched to Explore mode (confirmed `#chat-widget` and
+`#control-panel` both un-hide), opened the chat FAB (greeting bubble rendered), sent a real message
+and got back a correct, on-brand, non-pushy response from the live AI agent. Zero console errors
+across the whole session.

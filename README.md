@@ -40,6 +40,12 @@
 ### 💼 Decision-Maker Hook
 - Value-prop hero (traceability · throughput · uptime) with a **Book a demo** CTA
 - Executive **cyan + gold** visual system (cyan = live telemetry, gold = calls-to-action)
+- **Book a Demo** opens a real modal (name, email, company, job title, message) — submissions are
+  logged to Google Sheets and trigger a team notification + auto-reply via a published n8n workflow
+- **TyreFlow Assistant** chat widget answers questions about what OussamaLabs builds and can log
+  qualified leads to the same intake pipeline mid-conversation
+- Built by [OussamaLabs](https://oussamalabs.com) — this demo is itself proof of the ASRS-to-customer
+  traceability capability being pitched
 
 ### 📊 Live Dashboard
 - **Pipeline progress tracker** — real-time 9-step visual pipeline
