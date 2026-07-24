@@ -32,7 +32,7 @@ window.TF = window.TF || {};
         TRUCK: null, GATE: null, route: null, CUSTOMER: null,
         tyre: null, tyreTag: null, truck: null,
         activePallet: null, robot: null, group: null,
-        driveTargets: null
+        driveTargets: null, gateIdx: 1
     };
 
     function makePallet() {
@@ -90,9 +90,9 @@ window.TF = window.TF || {};
         ctx.fillStyle = '#0b1220'; ctx.fillRect(0, 0, 1024, 256);
         ctx.lineWidth = 16; ctx.strokeStyle = '#22c55e'; ctx.strokeRect(8, 8, 1008, 240);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 90px "Segoe UI", Arial';
+        ctx.fillStyle = '#f8fafc'; ctx.font = 'bold 90px "Inter", Arial, sans-serif';
         ctx.fillText(line1, 512, 100);
-        ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 54px "Segoe UI", Arial';
+        ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 54px "Inter", Arial, sans-serif';
         ctx.fillText(line2, 512, 180);
         const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = 8;
         return new THREE.Mesh(new THREE.PlaneGeometry(48, 12),
@@ -163,14 +163,38 @@ window.TF = window.TF || {};
             r.rotation.z = Math.PI / 2; r.position.set(logi.CORNER.x, bedTopY + 0.1, z); g.add(r);
         }
         
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(4, 5, 6, 20), steelMat);
-        base.position.set(60, 3, 22); base.castShadow = true; g.add(base);
-        const shoulder = new THREE.Group(); shoulder.position.set(60, 6, 22);
-        const upper = new THREE.Mesh(new THREE.BoxGeometry(2, 14, 2), truckCabMat);
-        upper.position.y = 7; upper.castShadow = true; shoulder.add(upper);
-        const elbow = new THREE.Group(); elbow.position.y = 14; upper.add(elbow);
-        const fore = new THREE.Mesh(new THREE.BoxGeometry(1.6, 12, 1.6), truckCabMat);
-        fore.position.y = 6; fore.castShadow = true; elbow.add(fore);
+        // Robotic palletizer — articulated arm: base + shoulder + forearm + gripper.
+        // Anchor: base (60,3,22), arm reaches over the pallet at (72,·,22).
+        // Keeps the swing hooks logistics drives in 'place': robot.shoulder.rotation.y
+        // and robot.elbow.rotation.x.
+        const jointMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.5, roughness: 0.4 });
+        const rBase = new THREE.Mesh(new THREE.CylinderGeometry(5, 6, 5, 24), steelMat);
+        rBase.position.set(60, 2.5, 22); rBase.castShadow = true; g.add(rBase);
+        const rColumn = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.6, 8, 20), jointMat);
+        rColumn.position.set(60, 7, 22); rColumn.castShadow = true; g.add(rColumn);
+
+        const shoulder = new THREE.Group();
+        shoulder.position.set(60, 11, 22);                       // swings about Y
+        const shoulderHub = new THREE.Mesh(new THREE.BoxGeometry(4.6, 4.6, 5), steelMat);
+        shoulder.add(shoulderHub);
+        const upperArm = new THREE.Mesh(new THREE.BoxGeometry(14, 3.4, 3.4), jointMat);
+        upperArm.position.set(7, 0.5, 0); upperArm.castShadow = true; shoulder.add(upperArm);
+
+        const elbow = new THREE.Group();
+        elbow.position.set(13, 0.5, 0);                          // pitches about X
+        const elbowHub = new THREE.Mesh(new THREE.BoxGeometry(3.8, 3.8, 3.8), steelMat);
+        elbow.add(elbowHub);
+        const forearm = new THREE.Mesh(new THREE.BoxGeometry(3, 8, 3), jointMat);
+        forearm.position.set(0, -3.5, 0); forearm.castShadow = true; elbow.add(forearm);
+        const wrist = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.6, 3.8), steelMat);
+        wrist.position.set(0, -7.4, 0); elbow.add(wrist);
+        [-1.4, 1.4].forEach(gx => {                             // two-finger gripper
+            const finger = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3, 3), steelMat);
+            finger.position.set(gx, -9.2, 0); elbow.add(finger);
+        });
+        const toolLight = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 10), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+        toolLight.position.set(0, -8.2, 0); elbow.add(toolLight);
+        shoulder.add(elbow);
         g.add(shoulder);
         logi.robot = { shoulder, elbow };
         
@@ -188,19 +212,55 @@ window.TF = window.TF || {};
             seg.receiveShadow = true; g.add(seg);
         }
         
+        // ===== Single canonical CUSTOMER delivery building (BUILD CONTRACT bug #1) =====
+        // Anchored at the delivery point (-215,20,190). Body sits just west so its
+        // receiving face + apron are centered on the anchor where the truck parks;
+        // the roll-up door + sign face east toward the incoming delivery road.
         const cust = new THREE.Group();
-        cust.position.copy(logi.CUSTOMER);
-        const bMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.2, roughness: 0.7 });
-        const building = new THREE.Mesh(new THREE.BoxGeometry(70, 40, 55), bMat);
-        building.position.set(0, 20, 50); building.receiveShadow = true; cust.add(building);
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(74, 3, 59),
-                    new THREE.MeshStandardMaterial({ color: 0x22c55e, metalness: 0.3, roughness: 0.5 }));
-        roof.position.set(0, 41.5, 50); cust.add(roof);
-        const door = new THREE.Mesh(new THREE.BoxGeometry(24, 22, 1),
-                    new THREE.MeshStandardMaterial({ color: 0x0f172a }));
-        door.position.set(0, 11, 22); cust.add(door);
+        cust.position.copy(logi.CUSTOMER);                       // (-215,0,190)
+        const bMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.2, roughness: 0.75 });
+        const trimMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.3, roughness: 0.6 });
+
+        const building = new THREE.Mesh(new THREE.BoxGeometry(55, 40, 60), bMat);
+        building.position.set(-32, 20, 0); building.receiveShadow = true; cust.add(building);
+        const parapet = new THREE.Mesh(new THREE.BoxGeometry(59, 3, 64), trimMat);
+        parapet.position.set(-32, 41.5, 0); cust.add(parapet);
+        const band = new THREE.Mesh(new THREE.BoxGeometry(0.6, 3, 60), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+        band.position.set(-4.4, 30, 0); cust.add(band);
+
+        // receiving-dock canopy over the door (faces the incoming road, +x)
+        const canopy = new THREE.Mesh(new THREE.BoxGeometry(10, 1.5, 30), trimMat);
+        canopy.position.set(2, 24, 0); cust.add(canopy);
+
+        // roll-up receiving door on the east face
+        const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.5, 26, 30), steelMat);
+        doorFrame.position.set(-4.6, 13, 0); cust.add(doorFrame);
+        const rcDoor = new THREE.Group(); rcDoor.position.set(-4, 12, 0);
+        const dSlatA = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.35 });
+        const dSlatB = new THREE.MeshStandardMaterial({ color: 0x7c8a9c, metalness: 0.7, roughness: 0.4 });
+        for (let i = 0; i < 8; i++) {
+            const slat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.6, 26), i % 2 ? dSlatB : dSlatA);
+            slat.position.set(0, -10 + i * 3, 0); rcDoor.add(slat);
+        }
+        cust.add(rcDoor);
+
+        // receiving apron/pad the truck parks on, centered on the delivery anchor
+        const apron = new THREE.Mesh(new THREE.BoxGeometry(46, 0.5, 44),
+                     new THREE.MeshStandardMaterial({ color: 0x3a4451, metalness: 0.2, roughness: 0.85 }));
+        apron.position.set(19, 0.3, 0); apron.receiveShadow = true; cust.add(apron);
+        [-15, 15].forEach(dz => {
+            const stripe = new THREE.Mesh(new THREE.BoxGeometry(40, 0.2, 1), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+            stripe.position.set(20, 0.6, dz); cust.add(stripe);
+        });
+        [-13, 13].forEach(dz => {
+            const bump = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 3), new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.9 }));
+            bump.position.set(-3.5, 2, dz); cust.add(bump);
+        });
+
+        // "CUSTOMER — DELIVERY POINT" sign above the door, facing the incoming road (+x)
         const sign = makeSign('CUSTOMER', 'DELIVERY POINT');
-        sign.position.set(0, 52, 50); cust.add(sign);
+        sign.rotation.y = Math.PI / 2;
+        sign.position.set(-3, 33, 0); cust.add(sign);
         g.add(cust);
         
         logi.tyre = new THREE.Mesh(getTyreGeo(), tyreDarkMat);
@@ -243,7 +303,14 @@ window.TF = window.TF || {};
         if (!logi.group) return;
         logi.t += dt;
         const w = FLOW_SPEC.w;
-        
+
+        // Ambient palletizer idle sway so the robot always shows life when a tour
+        // camera is parked here — the 'place' phase overrides this with the real cycle.
+        if (logi.robot && logi.phase !== 'place') {
+            logi.robot.shoulder.rotation.y = Math.sin(logi.t * 0.8) * 0.15;
+            logi.robot.elbow.rotation.x = Math.sin(logi.t * 0.8 + 0.5) * 0.1;
+        }
+
         switch (logi.phase) {
             case 'retrieve': {
                 if (logi.t > 1.1) {
@@ -255,12 +322,11 @@ window.TF = window.TF || {};
             }
             case 'qc_scan': {
                 const done = moveTo(logi.tyre.position, logi.QC, 50, dt);
-                if (window.TF.warehouse && window.TF.warehouse.qcBeam) {
-                    window.TF.warehouse.qcBeam.rotation.y += dt * 5; 
-                }
+                // QC laser sweep + indicator are driven continuously by
+                // TF.warehouse.updateStations (ambient), so nothing to drive here.
                 if (done) {
                     if (window.TF.warehouse && window.TF.warehouse.qcLight) {
-                         window.TF.warehouse.qcLight.material.color.setHex(0x22c55e); 
+                         window.TF.warehouse.qcLight.material.color.setHex(0x22c55e); // pass
                     }
                     logi.tyreTag.position.copy(logi.tyre.position);
                     logi.tyreTag.visible = true;
@@ -286,8 +352,9 @@ window.TF = window.TF || {};
                 break;
             }
             case 'label': {
+                // Press the applicator down onto the tyre (rest Y = 15), then release.
                 if (window.TF.warehouse && window.TF.warehouse.labelArm) {
-                    window.TF.warehouse.labelArm.position.y = 8 + Math.sin(logi.t * 10);
+                    window.TF.warehouse.labelArm.position.y = 15 - Math.max(0, Math.sin(logi.t * 12)) * 1.8;
                 }
                 if (logi.t > 0.8) {
                     logi.phase = 'conveyC'; logi.t = 0;
@@ -353,7 +420,17 @@ window.TF = window.TF || {};
                         logi.count = 0;
                         logi.phase = 'retrieve';
                     } else {
-                        logi.driveTargets = [logi.GATE, ...logi.route, logi.CUSTOMER];
+                        // Strictly monotonic route (no backtracking):
+                        // 66 -> 90 -> 130(gate) -> 170 -> (-30,180) -> (-170,188) -> customer(-215,190)
+                        logi.driveTargets = [
+                            new THREE.Vector3(72, 0, 90),
+                            logi.GATE,                       // (72,0,130)
+                            new THREE.Vector3(72, 0, 170),
+                            new THREE.Vector3(-30, 0, 180),
+                            new THREE.Vector3(-170, 0, 188),
+                            logi.CUSTOMER                    // (-215,0,190)
+                        ];
+                        logi.gateIdx = 1;
                         logi.routeIdx = 0;
                         logi.phase = 'gate';
                     }
@@ -362,16 +439,21 @@ window.TF = window.TF || {};
                 break;
             }
             case 'gate': {
+                // Drive up to the weighbridge; boom lifts UP (toward -PI/2) as the
+                // truck nears z~130, then pauses on the weighbridge before departing.
                 const tgt = logi.driveTargets[logi.routeIdx];
                 faceDir(logi.truck, logi.truck.position, tgt, dt);
                 const done = moveTo(logi.truck.position, tgt, 55, dt);
+                const gArm = window.TF.warehouse && window.TF.warehouse.gateArm;
+                if (gArm && logi.truck.position.z > 108) {
+                    gArm.rotation.z = Math.max(-Math.PI / 2, gArm.rotation.z - dt * 1.8);
+                }
                 if (done) {
-                    if (window.TF.warehouse && window.TF.warehouse.gateArm) {
-                        window.TF.warehouse.gateArm.rotation.z = Math.min(Math.PI / 2, window.TF.warehouse.gateArm.rotation.z + dt * 2);
-                    }
-                    if (logi.t > 2.0) {
-                         logi.routeIdx++;
-                         logi.phase = 'depart'; logi.t = 0;
+                    if (logi.routeIdx < logi.gateIdx) {
+                        logi.routeIdx++; logi.t = 0;             // reached z90, roll to the gate
+                    } else if (logi.t > 1.8) {
+                        logi.routeIdx++; logi.t = 0;             // weighbridge cleared
+                        logi.phase = 'depart';
                     }
                 }
                 break;
@@ -381,9 +463,9 @@ window.TF = window.TF || {};
                 faceDir(logi.truck, logi.truck.position, tgt, dt);
                 const done = moveTo(logi.truck.position, tgt, 55, dt);
                 if (done) {
-                    logi.routeIdx++;
-                    if (logi.routeIdx >= logi.driveTargets.length) { 
-                        logi.phase = 'delivered'; logi.t = 0; 
+                    logi.routeIdx++; logi.t = 0;
+                    if (logi.routeIdx >= logi.driveTargets.length) {
+                        logi.phase = 'delivered'; logi.t = 0;
                     }
                 }
                 break;
@@ -394,7 +476,10 @@ window.TF = window.TF || {};
                     logi.truck.userData.pallets.forEach(p => logi.truck.remove(p));
                     logi.truck.userData.pallets = [];
                     logi.truck.position.copy(logi.TRUCK);
-                    logi.truck.rotation.y = Math.PI;
+                    logi.truck.rotation.y = 0;                    // loading orientation (faces +z, matches build)
+                    if (window.TF.warehouse && window.TF.warehouse.gateArm) {
+                        window.TF.warehouse.gateArm.rotation.z = 0; // lower the boom for the next cycle
+                    }
                     logi.loaded = 0; logi.count = 0;
                     logi.activePallet = makePallet();
                     logi.activePallet.position.copy(logi.palletBase);

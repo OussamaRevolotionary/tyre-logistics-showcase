@@ -7,12 +7,19 @@ window.TF = window.TF || {};
 
     let qcBeam = null;
     let qcLight = null;
+    let qcField = null;
     let labelArm = null;
     let wrapRing = null;
     let gateArm = null;
     let gateBeacon = null;
     let dockDoor = null;
+    let dockLight = null;
     const dockDoorOpenY = 28;
+
+    // Ambient animation state (updateStations) — no per-frame allocations
+    let ambT = 0;
+    const LABEL_BASE_Y = 15;   // rest Y of the labeling applicator assembly
+    const DOCK_BASE_Y = 15;    // rest Y of the roll-up dock door
 
     function createRackLabel(text, sub) {
         const canvas = document.createElement('canvas');
@@ -21,15 +28,15 @@ window.TF = window.TF || {};
         ctx.fillStyle = '#0b1220';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.lineWidth = 14;
-        ctx.strokeStyle = '#f97316';
+        ctx.strokeStyle = '#38bdf8';
         ctx.strokeRect(7, 7, canvas.width - 14, canvas.height - 14);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillStyle = '#f8fafc';
-        ctx.font = 'bold 78px "Segoe UI", Arial, sans-serif';
+        ctx.font = 'bold 78px "Inter", Arial, sans-serif';
         ctx.fillText(text, canvas.width / 2, sub ? 78 : 100);
         if (sub) {
             ctx.fillStyle = '#38bdf8';
-            ctx.font = 'bold 44px "Segoe UI", Arial, sans-serif';
+            ctx.font = 'bold 44px "Inter", Arial, sans-serif';
             ctx.fillText(sub, canvas.width / 2, 148);
         }
         const texture = new THREE.CanvasTexture(canvas);
@@ -84,11 +91,12 @@ window.TF = window.TF || {};
         bridge.position.z = midZ;
         carriage.position.y = (yMin + yMax) / 2;
 
+        const busy = Math.abs(aisleX) < 0.001; // central aisle (x=0) — bias to keep working
         cranes.push({
             bridge, carriage, statusMat,
             zMin, zMax, yMin, yMax,
             tz: midZ, ty: (yMin + yMax) / 2,
-            dwell: Math.random() * 2, moving: false,
+            dwell: busy ? 0.1 : Math.random() * 2, moving: false, busy,
             speedZ: 22 + Math.random() * 10, speedY: 14 + Math.random() * 8
         });
         return crane;
@@ -106,7 +114,8 @@ window.TF = window.TF || {};
                 c.carriage.position.y = approach(c.carriage.position.y, c.ty, c.speedY * dt);
                 if (c.bridge.position.z === c.tz && c.carriage.position.y === c.ty) {
                     c.moving = false;
-                    c.dwell = 0.8 + Math.random() * 2.2;
+                    // central-aisle crane barely pauses so the ASRS stop always shows work
+                    c.dwell = c.busy ? (0.15 + Math.random() * 0.35) : (0.8 + Math.random() * 2.2);
                     c.statusMat.color.setHex(0x22c55e); // arrived = green
                 }
             } else {
@@ -118,6 +127,52 @@ window.TF = window.TF || {};
                     c.statusMat.color.setHex(0xf59e0b); // travelling = amber
                 }
             }
+        }
+    }
+
+    // Continuous ambient motion for EVERY station, independent of the flow-tyre
+    // state machine, so a tour camera parked at any stop always sees life.
+    // Cheap: scalar math only, no per-frame allocations. Guards against
+    // double-driving parts that logistics is actively animating.
+    function updateStations(dt) {
+        ambT += dt;
+        const lp = (window.TF.logistics && window.TF.logistics.logi) ? window.TF.logistics.logi.phase : '';
+
+        // QC — green laser bar sweeps vertically through the gantry + field flicker
+        if (qcBeam) {
+            const s = Math.sin(ambT * 2.2) * 0.5 + 0.5; // 0..1
+            qcBeam.position.y = 7 + s * 12;             // sweep y 7..19 (scan-plane ~15)
+            if (qcBeam.material) qcBeam.material.opacity = 0.55 + 0.35 * Math.abs(Math.sin(ambT * 9));
+        }
+        if (qcField && qcField.material) {
+            qcField.material.opacity = 0.06 + 0.05 * (Math.sin(ambT * 2.2) * 0.5 + 0.5);
+        }
+        if (qcLight && qcLight.material) {
+            qcLight.material.emissiveIntensity = 0.55 + 0.55 * (Math.sin(ambT * 3.0) * 0.5 + 0.5);
+        }
+
+        // Labeling — gentle idle bob (logistics owns it while actually tapping)
+        if (labelArm && lp !== 'label') {
+            labelArm.position.y = LABEL_BASE_Y + Math.sin(ambT * 1.6) * 0.35;
+        }
+
+        // Stretch-wrap — slow film-ring spin (logistics spins it during 'wrap')
+        if (wrapRing && lp !== 'wrap') {
+            wrapRing.rotation.y += dt * 1.6;
+        }
+
+        // Security gate — amber beacon pulse
+        if (gateBeacon && gateBeacon.material) {
+            const p = Math.sin(ambT * 4.0) * 0.5 + 0.5;
+            gateBeacon.material.emissiveIntensity = 0.35 + 0.9 * (p * p);
+        }
+
+        // Dock — ready-light pulse + subtle door "breathing"
+        if (dockLight && dockLight.material) {
+            dockLight.material.emissiveIntensity = 0.4 + 0.6 * (Math.sin(ambT * 2.6) * 0.5 + 0.5);
+        }
+        if (dockDoor) {
+            dockDoor.position.y = DOCK_BASE_Y + Math.sin(ambT * 1.1) * 0.25;
         }
     }
 
@@ -262,159 +317,228 @@ window.TF = window.TF || {};
             warehouseGroup.add(buildCrane(ax, zFront - 4, zBack + 4, rackHeight, mastMat));
         });
 
-        // 4. NEW: QC Inspection Station
+        const steelMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.55, roughness: 0.55 });
+
+        // 4. QC INSPECTION — scanning gantry: 2 uprights + top beam, green
+        //    laser scan-plane (sweeps in updateStations) + pass/fail indicator.
         const qcGroup = new THREE.Group();
-        qcGroup.position.set(20, 0, zFront + 2);
-        
-        const archGeo = new THREE.BoxGeometry(2, 20, 2);
-        const archMat = new THREE.MeshStandardMaterial({ color: 0x1e40af, metalness: 0.5, roughness: 0.5 });
-        const archL = new THREE.Mesh(archGeo, archMat);
-        archL.position.set(-8, 10, 0);
-        qcGroup.add(archL);
-        const archR = new THREE.Mesh(archGeo, archMat);
-        archR.position.set(8, 10, 0);
-        qcGroup.add(archR);
-        const archTop = new THREE.Mesh(new THREE.BoxGeometry(18, 2, 2), archMat);
-        archTop.position.set(0, 21, 0);
-        qcGroup.add(archTop);
-        
-        const beamGeoL = new THREE.BoxGeometry(14, 0.15, 0.15);
-        const beamMatL = new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.6 });
-        qcBeam = new THREE.Mesh(beamGeoL, beamMatL);
-        qcBeam.position.set(0, 15, 0);
-        qcGroup.add(qcBeam);
-        
-        const lightGeo = new THREE.SphereGeometry(1, 16, 16);
-        const lightMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
-        qcLight = new THREE.Mesh(lightGeo, lightMat);
-        qcLight.position.set(6, 23, 0);
-        qcGroup.add(qcLight);
-        
+        qcGroup.position.set(20, 0, -18);                       // anchor (20,12,-18)
+
+        const gantryMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.4 });
+        const qcAccentMat = new THREE.MeshStandardMaterial({ color: 0x1e40af, metalness: 0.5, roughness: 0.5 });
+        [-9, 9].forEach(dx => {
+            const foot = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 5), gantryMat);
+            foot.position.set(dx, 0.5, 0); qcGroup.add(foot);
+            const upright = new THREE.Mesh(new THREE.BoxGeometry(2, 22, 2), qcAccentMat);
+            upright.position.set(dx, 11, 0); qcGroup.add(upright);
+        });
+        const qcTop = new THREE.Mesh(new THREE.BoxGeometry(20, 2.4, 2.4), qcAccentMat);
+        qcTop.position.set(0, 21, 0); qcGroup.add(qcTop);
+        const qcStrip = new THREE.Mesh(new THREE.BoxGeometry(18, 0.6, 0.4), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+        qcStrip.position.set(0, 21, 1.3); qcGroup.add(qcStrip);
+
+        // faint static scan field (opacity flickers in updateStations)
+        qcField = new THREE.Mesh(
+            new THREE.PlaneGeometry(16, 13),
+            new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.08, side: THREE.DoubleSide })
+        );
+        qcField.position.set(0, 13.5, 0); qcGroup.add(qcField);
+
+        // bright green laser bar that sweeps vertically (updateStations)
+        qcBeam = new THREE.Mesh(
+            new THREE.BoxGeometry(16.5, 0.35, 0.5),
+            new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.8 })
+        );
+        qcBeam.position.set(0, 15, 0); qcGroup.add(qcBeam);
+
+        // pass / fail indicator stack on the beam
+        const qcHousing = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.2, 2), gantryMat);
+        qcHousing.position.set(7, 22.6, 0); qcGroup.add(qcHousing);
+        qcLight = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.8 })
+        );
+        qcLight.position.set(7, 24, 0); qcGroup.add(qcLight);
+        const qcFail = new THREE.Mesh(
+            new THREE.SphereGeometry(0.7, 12, 12),
+            new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.12 })
+        );
+        qcFail.position.set(7, 21.8, 0); qcGroup.add(qcFail);
+
+        const qcSign = createRackLabel('QC SCAN', 'IN-LINE INSPECTION');
+        qcSign.scale.set(0.5, 0.5, 0.5);
+        qcSign.position.set(0, 25.8, 0); qcGroup.add(qcSign);
+
         warehouseGroup.add(qcGroup);
 
-        // 5. NEW: Labeling Station
-        const steelMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.55, roughness: 0.55 });
+        // 5. LABELING — post + printer/dispenser + applicator arm that taps
+        //    down onto the passing tyre (logistics drives the tap in 'label').
         const labelGroup = new THREE.Group();
-        labelGroup.position.set(72, 0, 5);
-        
-        const post = new THREE.Mesh(new THREE.BoxGeometry(2, 12, 2), steelMat);
-        post.position.set(8, 6, 0);
-        labelGroup.add(post);
-        
-        labelArm = new THREE.Mesh(new THREE.BoxGeometry(6, 1.5, 1.5), steelMat);
-        labelArm.position.set(5, 11, 0);
+        labelGroup.position.set(72, 0, 5);                       // anchor (72,11,5)
+
+        const lPost = new THREE.Mesh(new THREE.BoxGeometry(2.5, 15, 2.5), steelMat);
+        lPost.position.set(11, 7.5, 0); labelGroup.add(lPost);
+
+        const printer = new THREE.Mesh(new THREE.BoxGeometry(6, 5, 5),
+            new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.5, roughness: 0.5 }));
+        printer.position.set(11, 13, 0); labelGroup.add(printer);
+        const barStrip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 4), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+        barStrip.position.set(7.9, 13, 0); labelGroup.add(barStrip);
+        const labelRoll = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 3, 16),
+            new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.7 }));
+        labelRoll.rotation.x = Math.PI / 2; labelRoll.position.set(11, 16.2, 0); labelGroup.add(labelRoll);
+
+        // applicator assembly (moves down to tap the tyre; idle-bobs in updateStations)
+        labelArm = new THREE.Group();
+        labelArm.position.set(11, LABEL_BASE_Y, 0);
+        const lArm = new THREE.Mesh(new THREE.BoxGeometry(11, 1.4, 1.4), steelMat);
+        lArm.position.set(-5.5, 0, 0); labelArm.add(lArm);
+        const lHead = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3, 3),
+            new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.5, roughness: 0.4 }));
+        lHead.position.set(-10.5, -1.5, 0); labelArm.add(lHead);
+        const lTip = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.6), new THREE.MeshBasicMaterial({ color: 0x22c55e }));
+        lTip.position.set(-10.5, -3.2, 0); labelArm.add(lTip);
         labelGroup.add(labelArm);
-        
+
+        const labelSign = createRackLabel('LABELING', 'BARCODE / SERIAL');
+        labelSign.scale.set(0.45, 0.45, 0.45);
+        labelSign.position.set(0, 18.5, 0); labelGroup.add(labelSign);
+
         warehouseGroup.add(labelGroup);
 
-        // 6. NEW: Stretch Wrap Station
+        // 6. STRETCH-WRAP — film ring on a frame that rotates around the pallet.
         const wrapGroup = new THREE.Group();
-        wrapGroup.position.set(72, 0, 35);
-        
+        wrapGroup.position.set(72, 0, 35);                       // anchor (72,12,35)
+
         const wFrameMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.4 });
-        const wPostL = new THREE.Mesh(new THREE.BoxGeometry(2, 24, 2), wFrameMat);
-        wPostL.position.set(-10, 12, 0);
-        wrapGroup.add(wPostL);
-        const wPostR = new THREE.Mesh(new THREE.BoxGeometry(2, 24, 2), wFrameMat);
-        wPostR.position.set(10, 12, 0);
-        wrapGroup.add(wPostR);
-        const wTop = new THREE.Mesh(new THREE.BoxGeometry(22, 2, 2), wFrameMat);
-        wTop.position.set(0, 25, 0);
-        wrapGroup.add(wTop);
-        
-        const ringG = new THREE.TorusGeometry(16, 0.8, 8, 32);
-        const ringM = new THREE.MeshStandardMaterial({ color: 0xbfdbfe, transparent: true, opacity: 0.15 });
-        wrapRing = new THREE.Mesh(ringG, ringM);
+        const wBase = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 1.5, 32), wFrameMat);
+        wBase.position.set(0, 0.75, 0); wrapGroup.add(wBase);
+        [-15, 15].forEach(dx => {
+            const wPost = new THREE.Mesh(new THREE.BoxGeometry(2, 26, 2), wFrameMat);
+            wPost.position.set(dx, 13, 0); wrapGroup.add(wPost);
+        });
+        const wTop = new THREE.Mesh(new THREE.BoxGeometry(32, 2, 2), wFrameMat);
+        wTop.position.set(0, 26, 0); wrapGroup.add(wTop);
+
+        // rotating film ring assembly (spun in 'wrap' by logistics + ambient idle)
+        wrapRing = new THREE.Group();
         wrapRing.position.set(0, 12, 0);
+        const ringTorus = new THREE.Mesh(
+            new THREE.TorusGeometry(16, 0.7, 10, 40),
+            new THREE.MeshStandardMaterial({ color: 0x38bdf8, metalness: 0.4, roughness: 0.4, emissive: 0x0e4b63, emissiveIntensity: 0.4 })
+        );
+        ringTorus.rotation.x = Math.PI / 2; wrapRing.add(ringTorus);
+        const wCarriage = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), wFrameMat);
+        wCarriage.position.set(16, 0, 0); wrapRing.add(wCarriage);
+        const wFilm = new THREE.Mesh(
+            new THREE.CylinderGeometry(15.6, 15.6, 11, 24, 1, true),
+            new THREE.MeshBasicMaterial({ color: 0xbfdbfe, transparent: true, opacity: 0.12, side: THREE.DoubleSide })
+        );
+        wrapRing.add(wFilm);
         wrapGroup.add(wrapRing);
-        
+
         warehouseGroup.add(wrapGroup);
 
-        // 7. NEW: Security Gate
+        // 7. SECURITY GATE + WEIGHBRIDGE — boom barrier (pivot 84,7,130,
+        //    lifts to vertical in logistics transit) over a weighbridge slab.
         const gateGroup = new THREE.Group();
-        gateGroup.position.set(72, 0, 130);
-        const safetyMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.1, roughness: 0.8 });
-        
-        const gatePost = new THREE.Mesh(new THREE.BoxGeometry(1.5, 8, 1.5), safetyMat);
-        gatePost.position.set(12, 4, 0);
-        gateGroup.add(gatePost);
-        
+        gateGroup.position.set(72, 0, 130);                      // anchor (72,6,130)
+        const safetyMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.2, roughness: 0.7 });
+
+        const weigh = new THREE.Mesh(new THREE.BoxGeometry(24, 1.2, 26),
+            new THREE.MeshStandardMaterial({ color: 0x2b3441, metalness: 0.5, roughness: 0.6 }));
+        weigh.position.set(0, 0.6, 0); weigh.receiveShadow = true; gateGroup.add(weigh);
+        [-13, 13].forEach(dz => {
+            const edge = new THREE.Mesh(new THREE.BoxGeometry(24, 0.3, 1), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+            edge.position.set(0, 1.25, dz); gateGroup.add(edge);
+        });
+
+        const gatePost = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), safetyMat);
+        gatePost.position.set(12, 5, 0); gateGroup.add(gatePost);
+
+        // striped boom arm — pivot at local (12,7,0) = world (84,7,130), reaches -x across the road
         gateArm = new THREE.Group();
-        gateArm.position.set(12, 6, 0);
-        const armMesh = new THREE.Mesh(new THREE.BoxGeometry(16, 0.8, 0.8), safetyMat);
-        armMesh.position.set(-8, 0, 0);
-        gateArm.add(armMesh);
+        gateArm.position.set(12, 7, 0);
+        for (let i = 0; i < 8; i++) {
+            const seg = new THREE.Mesh(new THREE.BoxGeometry(2, 0.9, 0.9),
+                new THREE.MeshStandardMaterial({ color: i % 2 ? 0xef4444 : 0xf8fafc, metalness: 0.1, roughness: 0.7 }));
+            seg.position.set(-1 - i * 2, 0, 0); gateArm.add(seg);
+        }
         gateGroup.add(gateArm);
-        
-        gateBeacon = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
-        gateBeacon.position.set(12, 9, 0);
-        gateGroup.add(gateBeacon);
-        
-        const weigh = new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 30), steelMat);
-        weigh.position.set(0, 0.25, 0);
-        gateGroup.add(weigh);
-        
+
+        const beaconHousing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.4, 1.6), steelMat);
+        beaconHousing.position.set(12, 10.4, 0); gateGroup.add(beaconHousing);
+        gateBeacon = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 0.6 })
+        );
+        gateBeacon.position.set(12, 11.5, 0); gateGroup.add(gateBeacon);
+
+        // weighbridge readout post
+        const roPost = new THREE.Mesh(new THREE.BoxGeometry(1.2, 8, 1.2), steelMat);
+        roPost.position.set(-14, 4, 10); gateGroup.add(roPost);
+        const roScreen = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 5), new THREE.MeshBasicMaterial({ color: 0x22d3ee }));
+        roScreen.position.set(-13.7, 7, 10); gateGroup.add(roScreen);
+
+        const gateSign = createRackLabel('SECURITY GATE', 'WEIGHBRIDGE');
+        gateSign.scale.set(0.5, 0.5, 0.5);
+        gateSign.position.set(0, 13.5, 0); gateGroup.add(gateSign);
+
         warehouseGroup.add(gateGroup);
 
-        // 8. NEW: Dock Door
+        // 8. DOCK DOOR — roll-up slat door with side rails, header, ready light.
         const dockGroup = new THREE.Group();
-        dockGroup.position.set(72, 0, 55);
-        
-        const frameGeo = new THREE.BoxGeometry(1, 30, 2);
-        const dFrameL = new THREE.Mesh(frameGeo, steelMat);
-        dFrameL.position.set(-10, 15, 0);
-        dockGroup.add(dFrameL);
-        
-        const dFrameR = new THREE.Mesh(frameGeo, steelMat);
-        dFrameR.position.set(10, 15, 0);
-        dockGroup.add(dFrameR);
-        
-        const dTop = new THREE.Mesh(new THREE.BoxGeometry(21, 2, 2), steelMat);
-        dTop.position.set(0, 31, 0);
-        dockGroup.add(dTop);
-        
-        const rollerMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 });
-        dockDoor = new THREE.Mesh(new THREE.BoxGeometry(19, 30, 0.5), rollerMat);
-        dockDoor.position.set(0, 15, 0);
+        dockGroup.position.set(72, 0, 55);                       // anchor (72,15,55)
+
+        [-10, 10].forEach(dx => {
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(1.5, 30, 3), steelMat);
+            rail.position.set(dx, 15, 0); dockGroup.add(rail);
+        });
+        const dTop = new THREE.Mesh(new THREE.BoxGeometry(23, 3, 3), steelMat);
+        dTop.position.set(0, 31, 0); dockGroup.add(dTop);
+
+        // roll-up curtain built from stacked slats (breathes in updateStations)
+        dockDoor = new THREE.Group();
+        dockDoor.position.set(0, DOCK_BASE_Y, 0);
+        const slatMatA = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.35 });
+        const slatMatB = new THREE.MeshStandardMaterial({ color: 0x7c8a9c, metalness: 0.7, roughness: 0.4 });
+        for (let i = 0; i < 10; i++) {
+            const slat = new THREE.Mesh(new THREE.BoxGeometry(19, 2.6, 0.6), i % 2 ? slatMatB : slatMatA);
+            slat.position.set(0, -13.5 + i * 3, 0); dockDoor.add(slat);
+        }
         dockGroup.add(dockDoor);
-        
+
+        const dockHousing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 1.6), steelMat);
+        dockHousing.position.set(12, 28, 1.5); dockGroup.add(dockHousing);
+        dockLight = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 14, 14),
+            new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.6 })
+        );
+        dockLight.position.set(12, 28, 2.4); dockGroup.add(dockLight);
+        [-8, 8].forEach(dx => {
+            const bump = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.9 }));
+            bump.position.set(dx, 1, 3); dockGroup.add(bump);
+        });
+        const dockSign = createRackLabel('SHIPPING DOCK', 'LOAD BAY 01');
+        dockSign.scale.set(0.55, 0.55, 0.55);
+        dockSign.position.set(0, 34, 0); dockGroup.add(dockSign);
+
         warehouseGroup.add(dockGroup);
 
-        // Enhanced Customer Building
-        const custGroup = new THREE.Group();
-        custGroup.position.set(-215, 0, 190);
-        custGroup.rotation.y = Math.PI / 2;
-        
-        const cBGeo = new THREE.BoxGeometry(60, 40, 40);
-        const cBMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 });
-        const cBuild = new THREE.Mesh(cBGeo, cBMat);
-        cBuild.position.y = 20;
-        custGroup.add(cBuild);
-        
-        const cDoor = new THREE.Mesh(new THREE.BoxGeometry(16, 16, 1), steelMat);
-        cDoor.position.set(0, 8, -20);
-        custGroup.add(cDoor);
-        
-        const cSign = createRackLabel('CUSTOMER DELIVERY POINT', 'RECEIVING');
-        cSign.scale.set(0.8, 0.8, 0.8);
-        cSign.position.set(0, 32, -20.5);
-        custGroup.add(cSign);
-        
-        const cPadGeo = new THREE.BoxGeometry(40, 1, 30);
-        const cPad = new THREE.Mesh(cPadGeo, new THREE.MeshStandardMaterial({ color: 0x64748b }));
-        cPad.position.set(0, 0.5, -35);
-        custGroup.add(cPad);
-        
-        warehouseGroup.add(custGroup);
+        // NOTE: the single canonical CUSTOMER building (anchor -215,20,190) is built
+        // in logistics.js (co-located with the delivery road). The duplicate that used
+        // to live here has been removed per BUILD CONTRACT bug #1.
 
         TF.warehouse.warehouseGroup = warehouseGroup;
         TF.warehouse.qcBeam = qcBeam;
         TF.warehouse.qcLight = qcLight;
+        TF.warehouse.qcField = qcField;
         TF.warehouse.labelArm = labelArm;
         TF.warehouse.wrapRing = wrapRing;
         TF.warehouse.gateArm = gateArm;
         TF.warehouse.gateBeacon = gateBeacon;
         TF.warehouse.dockDoor = dockDoor;
+        TF.warehouse.dockLight = dockLight;
         
         if (scene) scene.add(warehouseGroup);
         return warehouseGroup;
@@ -422,8 +546,8 @@ window.TF = window.TF || {};
 
     TF.warehouse = {
         STAGE, cranes, warehouseGroup,
-        qcBeam, qcLight, labelArm, wrapRing,
-        gateArm, gateBeacon, dockDoor, dockDoorOpenY,
-        buildWarehouse, updateCranes
+        qcBeam, qcLight, qcField, labelArm, wrapRing,
+        gateArm, gateBeacon, dockDoor, dockLight, dockDoorOpenY,
+        buildWarehouse, updateCranes, updateStations
     };
 })();

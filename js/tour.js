@@ -1,6 +1,9 @@
 /* ============================================================
    TYREFLOW — GUIDED CAMERA TOUR SYSTEM
-   Cinematic multi-stop flythrough of the supply chain
+   Auto-play cinematic flythrough of the supply chain.
+   Play / pause / prev / next, progress bar, arc'd fly-ins,
+   gentle dwell drift, and reduced-motion instant cuts.
+   Owns nothing outside this file. API frozen by _BUILD_CONTRACT.md.
    ============================================================ */
 window.TF = window.TF || {};
 
@@ -8,216 +11,378 @@ window.TF = window.TF || {};
     'use strict';
 
     // ---------- Tour Stop Definitions ----------
-    // Each stop: camera position, lookAt target, title, description, metrics, duration
+    // Anchors + framing come from _BUILD_CONTRACT.md §Camera framing.
+    //   cam   : camera eye (x,y,z)   — kept y >= MIN_Y (never under floor)
+    //   look  : orbit / lookAt target (a real station center)
+    //   dwell : ms parked at the stop (progress bar fills over this)
+    //   glide : ms fly-in from the previous stop (eased arc)
+    // Narration is quantified, outcome-first, 3 metric chips, matched to geometry.
     const STOPS = [
         {
             id: 'overview',
-            cam:  { x: 120, y: 90, z: 160 },
-            look: { x: 0,   y: 20, z: -80 },
-            title: 'Full Facility Overview',
-            desc: 'Welcome to the TyreFlow automated warehouse — a fully integrated tire supply chain from high-bay ASRS storage through QC, labeling, and stretch wrapping to final customer delivery.',
-            metrics: ['6 PCR Categories', '5 ASRS Aisles', '9-Step Flow'],
-            duration: 6000
+            cam:  { x: 150, y: 120, z: 215 },
+            look: { x: 30,  y: 22,  z: -20 },
+            dwell: 6500,
+            glide: 2600,
+            title: 'One Platform, Full Chain of Custody',
+            desc: 'Every tyre is tracked on a single automated platform — high-bay storage, in-line QC, palletizing, wrapping and GPS-tracked delivery. One system, one record, from ASRS slot to signed handoff.',
+            metrics: ['100% Traceability', '240 tyres/hr', '9-Stage Flow']
         },
         {
             id: 'hero-tyre',
-            cam:  { x: 25, y: 18, z: 60 },
-            look: { x: 0,  y: 12, z: 40 },
-            title: 'Precision-Engineered Tyre',
-            desc: 'Every tyre features parametric Aures tread geometry — adjust radius, width, rim size, and tread depth in real-time with CAD-exportable meshes.',
-            metrics: ['360-Seg Mesh', 'OBJ Export', 'Real-time Preview'],
-            duration: 5000
+            cam:  { x: 34, y: 20, z: 78 },
+            look: { x: 0,  y: 13, z: 40 },
+            dwell: 5500,
+            glide: 2200,
+            title: 'Engineered to Spec, Verified in CAD',
+            desc: 'Each SKU is modeled parametrically — radius, width, rim and tread depth — with production-accurate geometry. Specs stay auditable and export straight to CAD for tooling and QA.',
+            metrics: ['6 PCR Categories', '360-Segment Mesh', 'CAD / OBJ Export']
         },
         {
             id: 'asrs',
-            cam:  { x: 0, y: 45, z: 40 },
-            look: { x: 0, y: 45, z: -100 },
-            title: 'Automated Storage & Retrieval',
-            desc: 'High-bay ASRS with 5 aisles and 6 rack rows stores finished tyres across all PCR size categories. S/R cranes autonomously pick and stage orders.',
-            metrics: ['5 S/R Cranes', '5-Level High-Bay', '~18,000 Positions'],
-            duration: 6000
+            cam:  { x: 56, y: 82, z: 96 },
+            look: { x: 56, y: 42, z: -110 },
+            dwell: 6500,
+            glide: 2400,
+            title: 'Automated High-Bay Storage',
+            desc: 'A five-aisle high-bay ASRS stores finished tyres at maximum density. Autonomous S/R cranes retrieve any SKU on demand and stage orders without manual handling.',
+            metrics: ['~18,000 Positions', '<60s Retrieval', '99.6% Uptime']
         },
         {
             id: 'qc',
-            cam:  { x: 15, y: 12, z: 5 },
-            look: { x: 20, y: 8, z: -18 },
-            title: 'QC Inspection Station',
-            desc: 'Laser-guided quality control scans each retrieved tyre for dimensional accuracy and defects. Only "Released" tyres proceed downstream.',
-            metrics: ['Laser Scan', 'Auto Pass/Fail', '< 2s Cycle'],
-            duration: 5000
+            cam:  { x: 48, y: 22, z: 16 },
+            look: { x: 20, y: 12, z: -18 },
+            dwell: 5000,
+            glide: 2000,
+            title: 'In-Line Quality Assurance',
+            desc: 'Every retrieved tyre passes under the laser scan arch for dimensional and defect checks. Pass or fail is decided automatically — only released units continue downstream.',
+            metrics: ['100% Inspected', 'Auto Pass/Fail', '<2s Cycle']
         },
         {
             id: 'conveyor',
-            cam:  { x: 50, y: 15, z: 15 },
-            look: { x: 72, y: 8, z: -5 },
-            title: 'Conveyor & Labeling',
-            desc: 'L-shaped roller conveyor transports tyres from QC to the labeling station where serialized barcodes are applied for full chain-of-custody traceability.',
-            metrics: ['60 m/min Speed', 'Barcode Label', 'Serial Tracking'],
-            duration: 5000
+            cam:  { x: 30, y: 26, z: 52 },
+            look: { x: 64, y: 10, z: -6 },
+            dwell: 5000,
+            glide: 2000,
+            title: 'Serialized Track & Trace',
+            desc: 'The L-conveyor carries tyres to the labeling arm, which applies a unique serialized barcode at line speed. From here on, every unit has a scannable identity.',
+            metrics: ['60 m/min Line', 'Serialized Barcode', 'Zero Stops']
         },
         {
             id: 'palletizer',
-            cam:  { x: 45, y: 18, z: 35 },
-            look: { x: 70, y: 6, z: 22 },
-            title: 'Robotic Palletizer',
-            desc: 'A 6-axis robot arm stacks 4 tyres per pallet with precision placement. Completed pallets move to the stretch wrap station.',
-            metrics: ['4 Tyres/Pallet', '6-Axis Robot', 'Auto Stacking'],
-            duration: 5000
+            cam:  { x: 34, y: 26, z: 30 },
+            look: { x: 66, y: 12, z: 22 },
+            dwell: 5000,
+            glide: 2000,
+            title: 'Lights-Out Palletizing',
+            desc: 'A six-axis robot stacks tyres onto pallets with repeatable precision and no manual lifting. Completed loads index straight to the stretch-wrap station.',
+            metrics: ['4 Tyres/Pallet', '6-Axis Robot', 'Zero Manual Handling']
         },
         {
             id: 'wrap-dock',
-            cam:  { x: 100, y: 18, z: 55 },
-            look: { x: 72,  y: 8, z: 55 },
-            title: 'Wrap & Loading Dock',
-            desc: 'Pallets are stretch-wrapped for transit protection, then loaded onto the flatbed. The dock door opens automatically for truck access.',
-            metrics: ['Auto Wrap', 'Dock Leveler', '3 Pallets/Load'],
-            duration: 5000
+            cam:  { x: 40, y: 30, z: 100 },
+            look: { x: 72, y: 14, z: 50 },
+            dwell: 5000,
+            glide: 2200,
+            title: 'Wrap, Stage & Load',
+            desc: 'Pallets are stretch-wrapped for load integrity, then staged at the dock where the roll-up door opens for the flatbed. Loading is sequenced for fast, damage-free turnaround.',
+            metrics: ['Secured Loads', '3 Pallets/Truck', '<8min Dock Turn']
         },
         {
             id: 'transit',
-            cam:  { x: 95, y: 25, z: 110 },
-            look: { x: 72, y: 10, z: 130 },
-            title: 'GPS-Tracked Transit',
-            desc: 'Loaded trucks pass through the security gate and weighbridge. Full GPS tracking and chain-of-custody documentation accompany every shipment.',
-            metrics: ['GPS Tracking', 'Weighbridge', 'Security Gate'],
-            duration: 5000
+            cam:  { x: 150, y: 55, z: 155 },
+            look: { x: 72,  y: 6,  z: 128 },
+            dwell: 5000,
+            glide: 2200,
+            title: 'GPS Chain-of-Custody Transit',
+            desc: 'Each truck clears the weighbridge before the security boom lifts. Live GPS and a sealed digital manifest travel with the shipment for continuous chain of custody.',
+            metrics: ['Live GPS', 'Weighbridge Verified', 'Sealed Manifest']
         },
         {
             id: 'delivery',
-            cam:  { x: -150, y: 25, z: 170 },
-            look: { x: -215, y: 10, z: 190 },
-            title: 'Customer Delivery',
-            desc: 'Shipments arrive at the customer\'s receiving dock with complete traceability — from ASRS slot to final handoff. Chain of custody: closed.',
-            metrics: ['Proof of Delivery', 'Full Traceability', 'CoC Closed'],
-            duration: 5000
+            cam:  { x: -140, y: 42, z: 150 },
+            look: { x: -215, y: 16, z: 190 },
+            dwell: 6000,
+            glide: 2600,
+            title: 'Proof of Delivery, Closed Loop',
+            desc: 'Shipments arrive at the customer dock with the full chain of custody intact — from ASRS slot to signed handoff. The loop closes on-time and in-full.',
+            metrics: ['98% OTIF', 'Signed PoD', 'CoC Closed']
         }
     ];
 
+    // Keep a `duration` alias equal to dwell for backward-compat readers.
+    STOPS.forEach(s => { s.duration = s.dwell; });
+
+    // ---------- Constants ----------
+    const MIN_Y = 8;          // camera never dips under the floor
+    const RM_DWELL_MULT = 1.4; // reduced-motion: linger longer (no glide/drift)
+
     // ---------- Tour State ----------
     let active = false;
+    let paused = false;
+    let phase = 'idle';       // 'idle' | 'glide' | 'dwell'
     let currentStop = -1;
-    let transitioning = false;
-    let transitionStart = 0;
-    let transitionDuration = 2200; // ms for camera move
-    let dwellStart = 0;
-    let fromCam = new THREE.Vector3();
-    let fromLook = new THREE.Vector3();
-    let toCam = new THREE.Vector3();
-    let toLook = new THREE.Vector3();
+
+    let glideStart = 0;       // performance.now() when current glide began
+    let glideDuration = 2200;
+    let dwellElapsed = 0;     // accrued dwell ms (frozen while paused)
+    let dwellDuration = 5000;
+    let lastNow = 0;          // for frame-dt accumulation
+
+    let reducedMotion = false;
+
+    const fromCam  = new THREE.Vector3();
+    const fromLook = new THREE.Vector3();
+    const toCam    = new THREE.Vector3();
+    const toLook   = new THREE.Vector3();
+    const ctrlCam  = new THREE.Vector3(); // arc control point for the glide
+    const _off     = new THREE.Vector3(); // scratch for drift
 
     // References set by main.js
     let camera = null;
     let controls = null;
-    let onStopArrive = null; // callback(stopIndex, stopData)
-    let onTourEnd = null;    // callback
+
+    // Callbacks (set via setters below)
+    let onStopArrive = null;      // fn(stopIndex, stopData)
+    let onTourEnd = null;         // fn()
+    let onProgress = null;        // fn(fraction 0..1) — drives #tour-progress-fill
+    let onPlayStateChange = null; // fn(isPaused)
+
+    // matchMedia handle (evaluated live on each tour start)
+    const mmReduced = (typeof window.matchMedia === 'function')
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null;
 
     function init(cam, ctrl) {
         camera = cam;
         controls = ctrl;
     }
 
-    // Smooth easing
+    // ---------- Easing / math ----------
     function easeInOutCubic(t) {
-        return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3) / 2;
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
-    function startTour() {
-        active = true;
-        currentStop = -1;
-        nextStop();
+    // Quadratic bezier into `out` (p0 -> p1 -> p2)
+    function bezier3(p0, p1, p2, t, out) {
+        const mt = 1 - t;
+        const a = mt * mt, b = 2 * mt * t, c = t * t;
+        out.x = a * p0.x + b * p1.x + c * p2.x;
+        out.y = a * p0.y + b * p1.y + c * p2.y;
+        out.z = a * p0.z + b * p1.z + c * p2.z;
+        return out;
     }
 
-    function nextStop() {
-        currentStop++;
-        if (currentStop >= STOPS.length) {
-            endTour();
-            return;
-        }
+    // ---------- Core transition ----------
+    // Fly (or cut) to STOPS[index]. Works from any phase, so next/prev/skip
+    // re-trigger a fresh glide during auto-play.
+    function goToStop(index) {
+        if (index < 0 || index >= STOPS.length) return;
+        currentStop = index;
+        const stop = STOPS[index];
 
-        const stop = STOPS[currentStop];
-
-        // Capture current camera state as "from"
         fromCam.copy(camera.position);
         fromLook.copy(controls.target);
-
-        // Set target
         toCam.set(stop.cam.x, stop.cam.y, stop.cam.z);
         toLook.set(stop.look.x, stop.look.y, stop.look.z);
 
-        transitioning = true;
-        transitionStart = performance.now();
-
-        // Disable user controls during transition
+        // User cannot orbit while the camera is choreographed.
         controls.enabled = false;
+
+        if (reducedMotion) {
+            // Instant cut — no glide, no drift.
+            camera.position.copy(toCam);
+            if (camera.position.y < MIN_Y) camera.position.y = MIN_Y;
+            controls.target.copy(toLook);
+            controls.update();
+            arrive();
+            return;
+        }
+
+        // Anti-clipping arc: lift up and bow outward (+x, away from the deep
+        // racks) at the path midpoint, scaled by travel distance. Keeps long
+        // hops (e.g. delivery -> overview) from cutting through geometry.
+        const dist = fromCam.distanceTo(toCam);
+        ctrlCam.copy(fromCam).add(toCam).multiplyScalar(0.5);
+        ctrlCam.y += Math.min(dist * 0.18, 70);
+        ctrlCam.x += Math.min(dist * 0.12, 45);
+
+        phase = 'glide';
+        glideStart = performance.now();
+        glideDuration = stop.glide;
+        if (onProgress) onProgress(0);
     }
 
-    function prevStop() {
-        if (currentStop <= 0) return;
-        currentStop -= 2; // will be incremented by nextStop
-        nextStop();
+    // Called on arrival at a stop (end of glide, or immediately on a cut).
+    function arrive() {
+        const stop = STOPS[currentStop];
+        phase = 'dwell';
+        dwellElapsed = 0;
+        dwellDuration = reducedMotion ? stop.dwell * RM_DWELL_MULT : stop.dwell;
+        controls.enabled = false;
+        if (onStopArrive) onStopArrive(currentStop, stop);
+        if (onProgress) onProgress(0);
     }
 
-    function skipToStop(index) {
-        if (index < 0 || index >= STOPS.length) return;
-        currentStop = index - 1;
-        nextStop();
+    // Advance from a completed dwell.
+    function advance() {
+        if (currentStop + 1 >= STOPS.length) {
+            endTour();
+        } else {
+            goToStop(currentStop + 1);
+        }
+    }
+
+    // Gentle cinematic drift while parked: a very slow orbital sway around the
+    // look target + subtle push-in + faint vertical bob. Driven by dwellElapsed
+    // so it freezes when paused.
+    function applyDrift() {
+        _off.copy(toCam).sub(toLook);
+        const e = dwellElapsed;
+
+        // Slow orbit around vertical axis (amplitude ~2.9 deg, long period).
+        const theta = Math.sin(e * 0.00016) * 0.05;
+        const cos = Math.cos(theta), sin = Math.sin(theta);
+        const ox = _off.x * cos - _off.z * sin;
+        const oz = _off.x * sin + _off.z * cos;
+        _off.x = ox;
+        _off.z = oz;
+
+        // Subtle push-in over the dwell (up to 4% closer).
+        _off.multiplyScalar(1 - 0.04 * Math.min(1, e / dwellDuration));
+
+        camera.position.copy(toLook).add(_off);
+        camera.position.y += Math.sin(e * 0.0006) * 0.5; // faint bob
+        if (camera.position.y < MIN_Y) camera.position.y = MIN_Y;
+        controls.target.copy(toLook);
+    }
+
+    // ---------- Per-frame update (from main.js animate loop) ----------
+    function update() {
+        if (!active) return;
+
+        const now = performance.now();
+        let dt = now - lastNow;
+        lastNow = now;
+        if (dt < 0) dt = 0;
+        if (dt > 100) dt = 100; // clamp tab-switch spikes
+
+        if (phase === 'glide') {
+            // Glide always runs in real time so manual next/prev animate even
+            // when the auto-play is paused.
+            const rawT = Math.min(1, (now - glideStart) / glideDuration);
+            const te = easeInOutCubic(rawT);
+            bezier3(fromCam, ctrlCam, toCam, te, camera.position);
+            if (camera.position.y < MIN_Y) camera.position.y = MIN_Y;
+            controls.target.lerpVectors(fromLook, toLook, te);
+            controls.update();
+            if (onProgress) onProgress(0);
+            if (rawT >= 1) arrive();
+        } else if (phase === 'dwell') {
+            if (!paused) dwellElapsed += dt;
+            if (!reducedMotion) {
+                applyDrift();
+            } else {
+                controls.target.copy(toLook); // static hold
+            }
+            controls.update();
+            const frac = Math.min(1, dwellElapsed / dwellDuration);
+            if (onProgress) onProgress(frac);
+            if (!paused && dwellElapsed >= dwellDuration) advance();
+        }
+    }
+
+    // ---------- Lifecycle ----------
+    function startTour() {
+        if (!camera || !controls) return;
+        active = true;
+        paused = false;
+        reducedMotion = mmReduced ? mmReduced.matches : false;
+        currentStop = -1;
+        lastNow = performance.now();
+        if (onPlayStateChange) onPlayStateChange(false);
+        goToStop(0);
     }
 
     function endTour() {
         active = false;
-        transitioning = false;
-        controls.enabled = true;
+        paused = false;
+        phase = 'idle';
+        if (controls) {
+            controls.enabled = true;               // hand control back to the user
+            controls.target.copy(toLook);          // continue from the last framing
+            if (camera && camera.position.y < MIN_Y) camera.position.y = MIN_Y;
+            controls.update();
+        }
+        if (onProgress) onProgress(0);
         if (onTourEnd) onTourEnd();
     }
 
-    function update() {
+    // ---------- Navigation (valid during auto-play) ----------
+    function nextStop() {
         if (!active) return;
-        const now = performance.now();
-
-        if (transitioning) {
-            const elapsed = now - transitionStart;
-            let t = Math.min(1, elapsed / transitionDuration);
-            t = easeInOutCubic(t);
-
-            camera.position.lerpVectors(fromCam, toCam, t);
-            controls.target.lerpVectors(fromLook, toLook, t);
-            controls.update();
-
-            if (t >= 1) {
-                transitioning = false;
-                dwellStart = now;
-                // Notify UI to show info card
-                if (onStopArrive) onStopArrive(currentStop, STOPS[currentStop]);
-            }
-        } else {
-            // Dwelling at a stop — gentle camera bob
-            const elapsed = now - dwellStart;
-            const bob = Math.sin(elapsed * 0.0008) * 0.3;
-            camera.position.y = toCam.y + bob;
-            controls.update();
-        }
+        if (currentStop + 1 >= STOPS.length) { endTour(); return; }
+        goToStop(currentStop + 1);
     }
 
+    function prevStop() {
+        if (!active) return;
+        goToStop(Math.max(0, currentStop - 1));
+    }
+
+    function skipToStop(index) {
+        if (!active) return;
+        if (index < 0 || index >= STOPS.length) return;
+        goToStop(index);
+    }
+
+    // ---------- Play / pause ----------
+    function play() {
+        if (!active || !paused) return;
+        paused = false;
+        lastNow = performance.now();
+        if (onPlayStateChange) onPlayStateChange(false);
+    }
+
+    function pause() {
+        if (!active || paused) return;
+        paused = true;
+        if (onPlayStateChange) onPlayStateChange(true);
+    }
+
+    function togglePlay() {
+        if (paused) play(); else pause();
+    }
+
+    function isPaused() { return paused; }
+
+    // ---------- Getters ----------
     function isActive() { return active; }
     function getCurrentStop() { return currentStop; }
     function getTotalStops() { return STOPS.length; }
     function getStopData(index) { return STOPS[index]; }
 
-    // ---------- Expose API ----------
+    // ---------- Expose API (names frozen by _BUILD_CONTRACT.md) ----------
     TF.tour = {
         STOPS,
         init,
         startTour,
+        endTour,
         nextStop,
         prevStop,
         skipToStop,
-        endTour,
+        play,
+        pause,
+        togglePlay,
+        isPaused,
         update,
         isActive,
         getCurrentStop,
         getTotalStops,
         getStopData,
-        set onStopArrive(fn) { onStopArrive = fn; },
-        set onTourEnd(fn) { onTourEnd = fn; }
+        set onStopArrive(fn)      { onStopArrive = fn; },
+        set onTourEnd(fn)         { onTourEnd = fn; },
+        set onProgress(fn)        { onProgress = fn; },
+        set onPlayStateChange(fn) { onPlayStateChange = fn; }
     };
 })();

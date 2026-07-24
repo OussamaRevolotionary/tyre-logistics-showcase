@@ -30,10 +30,16 @@
 - Adjustable: radius, width, rim size, tread depth, density
 - **CAD export** to .OBJ (compatible with SolidWorks, Fusion360, Blender)
 
-### 🎬 Guided Camera Tour
-- **9-stop cinematic flythrough** of the entire facility
-- Info cards with metrics at each station
-- Smooth eased camera transitions with gentle bob at stops
+### 🎬 Executive Guided Tour
+- **Auto-playing, 9-stop cinematic flythrough** of the entire facility — it drives itself
+- **Play / Pause / Back / Next** controls, a live progress bar, and a clickable milestone rail
+- Cinematic **letterbox** framing; each camera glides in on an eased, anti-clipping arc
+- Outcome-focused narration cards with 3 quantified metrics per stop
+- Respects `prefers-reduced-motion` (instant cuts, longer dwell)
+
+### 💼 Decision-Maker Hook
+- Value-prop hero (traceability · throughput · uptime) with a **Book a demo** CTA
+- Executive **cyan + gold** visual system (cyan = live telemetry, gold = calls-to-action)
 
 ### 📊 Live Dashboard
 - **Pipeline progress tracker** — real-time 9-step visual pipeline

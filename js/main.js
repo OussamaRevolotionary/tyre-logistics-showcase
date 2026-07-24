@@ -227,14 +227,18 @@ window.TF = window.TF || {};
 
         controls.update();
 
-        // Hero tyre slow rotate
-        if (tyreMesh && !userInteracting && !(TF.tour && TF.tour.isActive())) {
+        // Hero tyre slow rotate — keep spinning even during the tour
+        // (it is the subject of the hero-tyre stop). Only user grabs pause it.
+        if (tyreMesh && !userInteracting) {
             tyreMesh.rotation.z -= 0.35 * dt;
         }
 
-        // Update subsystems
+        // Update subsystems (order per _BUILD_CONTRACT.md §MODULE API)
         if (TF.warehouse && TF.warehouse.updateCranes) {
             TF.warehouse.updateCranes(dt);
+        }
+        if (TF.warehouse && TF.warehouse.updateStations) {
+            TF.warehouse.updateStations(dt); // NEW — continuous ambient station motion
         }
         if (TF.logistics && TF.logistics.updateLogistics) {
             TF.logistics.updateLogistics(dt);
@@ -261,7 +265,12 @@ window.TF = window.TF || {};
     TF.main = {
         init,
         updateMainTyre,
-        exportToOBJ
+        exportToOBJ,
+        // Read-only debug hooks (harmless getters) for offline render capture / QA.
+        get _scene()    { return scene; },
+        get _camera()   { return camera; },
+        get _renderer() { return renderer; },
+        get _controls() { return controls; }
     };
 
     // ---------- Boot ----------

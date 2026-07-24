@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TyreFlow — Smart Tire Warehouse & Supply Chain</title>
-    <meta name="description" content="End-to-end tire supply chain showcase — automated ASRS warehouse, QC inspection, labeling, palletizing, and GPS-tracked delivery. Real-time 3D simulation.">
+    <title>TyreFlow — Supply Chain Intelligence for Tyre Logistics</title>
+    <meta name="description" content="TyreFlow is an executive 3D showcase of an end-to-end tyre supply chain: automated high-bay ASRS storage, inline QC, serialized track &amp; trace, lights-out palletizing and GPS chain-of-custody delivery — 100% traceability, boardroom-ready.">
     <link rel="stylesheet" href="css/styles.css">
 
     <!-- Three.js Libraries -->
@@ -17,135 +17,258 @@
     <!-- 3D Canvas -->
     <div id="canvas-container"></div>
 
-    <!-- Loading Overlay -->
-    <div id="loading-overlay">
-        <div class="spinner"></div>
-        <div id="loading-text">Initializing Scene...</div>
+    <!-- ============================================================
+         LOADING OVERLAY
+         ============================================================ -->
+    <div id="loading-overlay" role="status" aria-live="polite">
+        <div class="loader">
+            <div class="spinner"></div>
+            <div class="loader-track"><span class="loader-fill"></span></div>
+        </div>
+        <div id="loading-text">Initializing scene…</div>
     </div>
 
     <!-- ============================================================
-         LANDING OVERLAY
+         LANDING OVERLAY — enterprise hook
          ============================================================ -->
-    <div id="landing-overlay">
+    <div id="landing-overlay" role="dialog" aria-labelledby="landing-title" aria-modal="true">
         <div class="landing-content">
             <div class="landing-badge">
-                <span class="dot"></span>
-                LIVE SIMULATION
+                <span class="dot" aria-hidden="true"></span>
+                LIVE OPS SIMULATION
             </div>
-            <h1 class="landing-title">End-to-End Tire Supply Chain</h1>
+
+            <h1 id="landing-title" class="landing-title">
+                See every tyre, from rack to <span class="hero-accent">receiving dock</span>.
+            </h1>
+
             <p class="landing-subtitle">
-                From automated high-bay storage to your customer's door — full traceability,
-                robotic palletizing, QC inspection, and GPS-tracked delivery in one integrated platform.
+                TyreFlow unifies automated high-bay storage, inline QC and GPS chain-of-custody
+                delivery on one platform — <strong>100% serialized traceability</strong> across
+                <strong>18,000+ storage positions</strong>, <strong>240 tyres/hour</strong> of sustained
+                throughput, and up to <strong>90% less manual handling</strong>.
             </p>
+
+            <!-- Value-prop outcome cards (inline SVG icons, no emoji) -->
+            <div id="value-props">
+                <article class="value-card">
+                    <span class="value-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/>
+                            <path d="M9 12l2 2 4-4"/>
+                        </svg>
+                    </span>
+                    <div class="value-metric">100%</div>
+                    <div class="value-title">Traceability</div>
+                    <p class="value-desc">Serialized chain-of-custody on every unit — from ASRS slot to proof of delivery.</p>
+                </article>
+
+                <article class="value-card">
+                    <span class="value-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 19V10"/><path d="M10 19V5"/><path d="M16 19v-6"/>
+                            <path d="M3 19h18"/><path d="M14 8l3-3 3 3"/>
+                        </svg>
+                    </span>
+                    <div class="value-metric value-metric--gold">240<span class="unit">/hr</span></div>
+                    <div class="value-title">Throughput</div>
+                    <p class="value-desc">Lights-out palletizing and inline QC keep the line moving at speed.</p>
+                </article>
+
+                <article class="value-card">
+                    <span class="value-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12h4l2 6 4-14 2 8h6"/>
+                        </svg>
+                    </span>
+                    <div class="value-metric">99.6%</div>
+                    <div class="value-title">Uptime</div>
+                    <p class="value-desc">Redundant S/R cranes and automated retrieval sustain around-the-clock ops.</p>
+                </article>
+            </div>
+
+            <!-- Outcome stats -->
             <div class="landing-stats">
                 <div class="landing-stat">
                     <div class="landing-stat-value">18K+</div>
-                    <div class="landing-stat-label">Storage Positions</div>
+                    <div class="landing-stat-label">Buffer Positions</div>
                 </div>
                 <div class="landing-stat">
-                    <div class="landing-stat-value">9</div>
-                    <div class="landing-stat-label">Checkpoints</div>
+                    <div class="landing-stat-value">&lt;2s</div>
+                    <div class="landing-stat-label">QC Cycle Time</div>
                 </div>
                 <div class="landing-stat">
-                    <div class="landing-stat-value">100%</div>
-                    <div class="landing-stat-label">Traceability</div>
+                    <div class="landing-stat-value">90%</div>
+                    <div class="landing-stat-label">Less Manual Handling</div>
                 </div>
                 <div class="landing-stat">
-                    <div class="landing-stat-value">6</div>
-                    <div class="landing-stat-label">PCR Categories</div>
+                    <div class="landing-stat-value">24/7</div>
+                    <div class="landing-stat-label">Lights-Out Ops</div>
                 </div>
             </div>
+
             <div class="landing-buttons">
-                <button id="btn-start-tour" class="btn-primary">▶ Start Guided Tour</button>
-                <button id="btn-explore" class="btn-secondary">Explore Freely</button>
+                <button id="btn-start-tour" class="btn btn-gold" aria-label="Start the executive guided tour">
+                    <svg class="btn-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    Start Executive Tour
+                </button>
+                <button id="btn-explore" class="btn btn-ghost" aria-label="Explore the facility freely in 3D">
+                    <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a15 15 0 000 18M12 3a15 15 0 010 18M3 12h18"/></svg>
+                    Explore the Facility
+                </button>
+                <!-- TODO: swap to Calendly/booking link -->
+                <a id="btn-book-demo" class="btn btn-gold-outline" href="mailto:oussamabdi19@gmail.com?subject=TyreFlow%20Demo" aria-label="Book a demo of TyreFlow">
+                    <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M9 15l2 2 4-4"/></svg>
+                    Book a Demo
+                </a>
             </div>
         </div>
     </div>
 
     <!-- ============================================================
-         TOP NAV BAR
+         TOP NAV BAR (Explore mode)
          ============================================================ -->
     <div id="top-bar" class="top-bar hidden">
         <div class="brand">
-            <div class="brand-icon">🛞</div>
-            <div>
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="15" stroke="url(#tfg)" stroke-width="2.4"/>
+                    <circle cx="20" cy="20" r="5.5" stroke="url(#tfg)" stroke-width="2.4"/>
+                    <path d="M20 4.8V14.5M20 25.5v9.7M4.8 20h9.7M25.5 20h9.7" stroke="url(#tfg)" stroke-width="2.2" stroke-linecap="round"/>
+                    <defs>
+                        <linearGradient id="tfg" x1="5" y1="5" x2="35" y2="35" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#22d3ee"/><stop offset="1" stop-color="#38bdf8"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </span>
+            <div class="brand-text">
                 <div class="brand-name">TyreFlow</div>
-                <div class="brand-tag">Supply Chain Logistics</div>
+                <div class="brand-tag">Supply Chain Intelligence</div>
             </div>
         </div>
         <div class="top-actions">
-            <button id="btn-tour-restart" class="btn-tour-restart">
-                🎬 Replay Tour
+            <button id="btn-tour-restart" class="btn btn-bar" aria-label="Replay the executive tour">
+                <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-7 3.3M3 3v4h4"/></svg>
+                Replay Tour
             </button>
+            <!-- TODO: swap to Calendly/booking link -->
+            <a id="btn-book-demo-top" class="btn btn-gold btn-bar-cta" href="mailto:oussamabdi19@gmail.com?subject=TyreFlow%20Demo" aria-label="Book a demo of TyreFlow">
+                <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+                Book a Demo
+            </a>
         </div>
     </div>
 
     <!-- ============================================================
-         TOUR INFO CARD
+         CINEMATIC LETTERBOX BARS
          ============================================================ -->
-    <div id="tour-card" class="tour-card">
-        <div class="tour-card-header">
-            <span id="tour-step-badge" class="tour-step-badge">STOP 1</span>
-            <span id="tour-step-counter" class="tour-step-counter">1 / 9</span>
-        </div>
-        <div id="tour-card-title" class="tour-card-title">—</div>
-        <div id="tour-card-desc" class="tour-card-desc">—</div>
-        <div id="tour-card-metrics" class="tour-card-metrics"></div>
-        <div class="tour-controls">
-            <button id="tour-btn-skip" class="tour-btn tour-btn-skip">Skip Tour</button>
-            <button id="tour-btn-next" class="tour-btn tour-btn-next">Next →</button>
-        </div>
-        <div id="tour-progress" class="tour-progress"></div>
+    <div id="cinema-bars" aria-hidden="true">
+        <div class="cinema-bar top"></div>
+        <div class="cinema-bar bottom"></div>
     </div>
 
     <!-- ============================================================
-         CONTROL PANEL (right — tyre generator)
+         CINEMATIC TOUR HUD
+         ============================================================ -->
+    <div id="tour-hud" role="region" aria-label="Guided tour narration">
+        <div class="tour-hud-inner">
+            <div class="tour-hud-top">
+                <span id="tour-step-badge" class="tour-step-badge">01</span>
+                <span id="tour-step-counter" class="tour-step-counter">01 / 09</span>
+            </div>
+
+            <h2 id="tour-card-title" class="tour-card-title">—</h2>
+            <p id="tour-card-desc" class="tour-card-desc">—</p>
+            <div id="tour-card-metrics" class="tour-card-metrics"></div>
+
+            <!-- Clickable milestone rail (ticks injected by ui.js) -->
+            <div id="tour-timeline" class="tour-timeline" role="tablist" aria-label="Tour milestones"></div>
+
+            <!-- Per-stop dwell progress -->
+            <div id="tour-progress-bar" class="tour-progress-bar" aria-hidden="true">
+                <span id="tour-progress-fill" class="tour-progress-fill"></span>
+            </div>
+
+            <div id="tour-controls" class="tour-controls">
+                <div class="tour-controls-group">
+                    <button id="tour-btn-prev" class="tour-ctl" aria-label="Previous stop">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <button id="tour-btn-playpause" class="tour-ctl tour-ctl--primary" data-state="playing" aria-label="Pause">
+                        <svg class="ico-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                        <svg class="ico-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    <button id="tour-btn-next" class="tour-ctl" aria-label="Next stop">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
+                </div>
+                <div class="tour-controls-group">
+                    <!-- TODO: swap to Calendly/booking link -->
+                    <a id="tour-cta" class="btn btn-gold" href="mailto:oussamabdi19@gmail.com?subject=TyreFlow%20Demo" aria-label="Book a demo of TyreFlow">
+                        <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+                        Book a Demo
+                    </a>
+                    <button id="tour-btn-skip" class="tour-btn-skip" aria-label="Exit the tour">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5l-7 7 7 7M7 12h13"/></svg>
+                        Exit tour
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         CONTROL PANEL (Explore mode — tyre generator)
          ============================================================ -->
     <div id="control-panel" class="control-panel hidden">
-        <div class="panel-title">Pro Tyre Generator</div>
-        <p class="panel-subtitle">Parametric mesh with Aures tread pattern</p>
+        <div class="panel-head">
+            <span class="panel-kicker">Parametric Engine</span>
+            <div class="panel-title">Pro Tyre Generator</div>
+            <p class="panel-subtitle">Aures tread geometry · CAD-exportable mesh</p>
+        </div>
 
         <div class="slider-container">
             <div class="slider-label"><span>Overall Radius</span> <span id="val-radius">10.0</span></div>
-            <input type="range" id="param-radius" min="6" max="15" step="0.5" value="10">
+            <input type="range" id="param-radius" min="6" max="15" step="0.5" value="10" aria-label="Overall radius">
         </div>
 
         <div class="slider-container">
             <div class="slider-label"><span>Tyre Width</span> <span id="val-width">8.0</span></div>
-            <input type="range" id="param-width" min="4" max="12" step="0.5" value="8">
+            <input type="range" id="param-width" min="4" max="12" step="0.5" value="8" aria-label="Tyre width">
         </div>
 
         <div class="slider-container">
             <div class="slider-label"><span>Rim Size (Inner)</span> <span id="val-rim">5.5</span></div>
-            <input type="range" id="param-rim" min="3" max="10" step="0.5" value="5.5">
+            <input type="range" id="param-rim" min="3" max="10" step="0.5" value="5.5" aria-label="Rim size">
         </div>
 
         <div class="slider-container">
             <div class="slider-label"><span>Tread Depth</span> <span id="val-tread">0.35</span></div>
-            <input type="range" id="param-tread" min="0.1" max="0.8" step="0.05" value="0.35">
+            <input type="range" id="param-tread" min="0.1" max="0.8" step="0.05" value="0.35" aria-label="Tread depth">
         </div>
 
         <div class="slider-container">
             <div class="slider-label"><span>Tread Density</span> <span id="val-count">65</span></div>
-            <input type="range" id="param-count" min="30" max="100" step="1" value="65">
+            <input type="range" id="param-count" min="30" max="100" step="1" value="65" aria-label="Tread density">
         </div>
 
-        <button id="export-btn" class="btn-export">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="export-btn" class="btn-export" aria-label="Export tyre to CAD OBJ file">
+            <svg class="btn-ico" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
             </svg>
             Export to CAD (.obj)
         </button>
-        <p class="export-hint">Downloads solid manifold mesh for SolidWorks, Fusion360, Blender</p>
+        <p class="export-hint">Solid manifold mesh for SolidWorks, Fusion 360, Blender</p>
     </div>
 
     <!-- ============================================================
-         LIVE HUD (bottom-left dashboard)
+         LIVE HUD (bottom-left ops dashboard)
          ============================================================ -->
     <div id="flow-hud" class="hidden">
         <div class="hud-header">
-            <span class="hud-title">SUPPLY CHAIN · LIVE FLOW</span>
-            <span class="hud-live-badge"><span class="dot"></span> LIVE</span>
+            <span class="hud-title">Supply Chain · Live Flow</span>
+            <span class="hud-live-badge"><span class="dot" aria-hidden="true"></span> LIVE</span>
         </div>
 
         <!-- Pipeline progress tracker -->
@@ -172,10 +295,10 @@
 
         <!-- Legend -->
         <div class="hud-legend">
-            <span><i style="background:#22c55e"></i>Released</span>
-            <span><i style="background:#f59e0b"></i>In transit</span>
-            <span><i style="background:#22d3ee"></i>Idle</span>
-            <span><i style="background:#ef4444"></i>Alert</span>
+            <span><i style="background:var(--green)"></i>Released</span>
+            <span><i style="background:var(--amber)"></i>In transit</span>
+            <span><i style="background:var(--cyan-2)"></i>Idle</span>
+            <span><i style="background:var(--red)"></i>Alert</span>
         </div>
     </div>
 
