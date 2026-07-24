@@ -192,15 +192,15 @@ window.TF = window.TF || {};
         cust.position.copy(logi.CUSTOMER);
         const bMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.2, roughness: 0.7 });
         const building = new THREE.Mesh(new THREE.BoxGeometry(70, 40, 55), bMat);
-        building.position.y = 20; building.receiveShadow = true; cust.add(building);
+        building.position.set(0, 20, 50); building.receiveShadow = true; cust.add(building);
         const roof = new THREE.Mesh(new THREE.BoxGeometry(74, 3, 59),
                     new THREE.MeshStandardMaterial({ color: 0x22c55e, metalness: 0.3, roughness: 0.5 }));
-        roof.position.y = 41.5; cust.add(roof);
+        roof.position.set(0, 41.5, 50); cust.add(roof);
         const door = new THREE.Mesh(new THREE.BoxGeometry(24, 22, 1),
                     new THREE.MeshStandardMaterial({ color: 0x0f172a }));
-        door.position.set(0, 11, 28); cust.add(door);
+        door.position.set(0, 11, 22); cust.add(door);
         const sign = makeSign('CUSTOMER', 'DELIVERY POINT');
-        sign.position.set(0, 52, 0); cust.add(sign);
+        sign.position.set(0, 52, 50); cust.add(sign);
         g.add(cust);
         
         logi.tyre = new THREE.Mesh(getTyreGeo(), tyreDarkMat);
@@ -211,7 +211,7 @@ window.TF = window.TF || {};
         
         logi.truck = makeTruck();
         logi.truck.position.copy(logi.TRUCK);
-        logi.truck.rotation.y = Math.PI;
+        logi.truck.rotation.y = 0;
         g.add(logi.truck);
         
         logi.activePallet = makePallet();
@@ -412,21 +412,10 @@ window.TF = window.TF || {};
         updateLogistics,
         getPhaseText: () => {
             const sn = 'SN-' + logi.serial;
-            const map = {
-                'retrieve': '① RETRIEVING ' + sn + ' from ASRS | pallet ' + logi.count + '/4 · truck ' + logi.loaded + '/' + logi.TRUCK_CAP,
-                'qc_scan': '② QC SCANNING ' + sn + ' · INSPECTION',
-                'conveyA': '③ CONVEYING ' + sn + ' · QC: RELEASED ✓',
-                'conveyB': '③ CONVEYING ' + sn + ' · QC: RELEASED ✓',
-                'label': '④ LABELING ' + sn + ' · BARCODE APPLIED',
-                'conveyC': '⑤ CONVEYING ' + sn,
-                'place': '⑥ PALLETIZING ' + sn + ' · pallet ' + (logi.count + 1) + '/4',
-                'wrap': '⑦ STRETCH WRAPPING PALLET',
-                'loadpallet': '⑧ LOADING TRUCK · pallet ' + (logi.loaded + 1) + '/' + logi.TRUCK_CAP,
-                'gate': '⑨ SECURITY CHECK',
-                'depart': '⑩ IN TRANSIT TO CUSTOMER · full traceability active',
-                'delivered': '✓ DELIVERED TO CUSTOMER · ' + logi.TRUCK_CAP + ' pallets · chain of custody closed'
-            };
-            return map[logi.phase] || '';
+            const routeStatus = (logi.phase === 'delivered') ? 'DELIVERED' : (logi.phase === 'depart' || logi.phase === 'gate') ? 'IN TRANSIT' : 'PROCESSING';
+            return `TRACKING ID: ${sn}\n` +
+                   `PHASE: ${logi.phase.toUpperCase()}\n` +
+                   `STATUS: ${routeStatus}`;
         },
         getPipelineIndex: () => PIPELINE_INDEX[logi.phase] || 0,
         getKPIs: () => ({ tyres: kpis.tyres, pallets: kpis.pallets, trucks: kpis.trucks }),
