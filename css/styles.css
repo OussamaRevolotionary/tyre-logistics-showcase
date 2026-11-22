@@ -999,3 +999,4 @@ input[type=range]::-moz-range-thumb {
     .hero-accent::after { transform: scaleX(1); }
     .btn:hover, .value-card:hover, .tour-ctl:hover { transform: none; }
 }
+.sim-note{font-size:.7em;opacity:.7;font-weight:400;font-style:normal}

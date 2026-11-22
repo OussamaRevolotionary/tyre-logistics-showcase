@@ -26,7 +26,7 @@
 | 9 | **Customer Delivery** | GPS-tracked transit to receiving dock |
 
 ### 🛞 Parametric Tyre Generator
-- Real-time parametric 3D tire with **Aures tread pattern**
+- Real-time parametric 3D tire with **asymmetric touring tread pattern**
 - Adjustable: radius, width, rim size, tread depth, density
 - **CAD export** to .OBJ (compatible with SolidWorks, Fusion360, Blender)
 

@@ -11,6 +11,8 @@ window.TF = window.TF || {};
     // Published n8n webhooks (see _BUILD_CONTRACT.md for the workflows behind these).
     const DEMO_INTAKE_URL = 'https://oussama19.app.n8n.cloud/webhook/tyreflow-demo-intake';
     const CHATBOT_URL     = 'https://oussama19.app.n8n.cloud/webhook/tyreflow-chatbot';
+    // Sandbox by default: network calls only when the page is opened with ?live=1
+    const LIVE = new URLSearchParams(window.location.search).get('live') === '1';
     const CHAT_SESSION_KEY = 'tyreflowChatSessionId';
 
     // Pipeline labels map to logistics pipeline index 0-8
@@ -247,6 +249,11 @@ window.TF = window.TF || {};
             span.textContent = m;
             els.tourMetrics.appendChild(span);
         });
+        const simChip = document.createElement('span');
+        simChip.className = 'tour-card-metric tour-card-metric--sim';
+        simChip.textContent = 'Simulated figures';
+        simChip.style.opacity = '0.65';
+        els.tourMetrics.appendChild(simChip);
 
         // Timeline ticks: active / done
         if (els.tourTimeline) {
@@ -350,6 +357,13 @@ window.TF = window.TF || {};
             return;
         }
 
+        if (!LIVE) {
+            setDemoStatus('Demo mode — nothing was sent.', 'success');
+            els.demoForm.reset();
+            window.setTimeout(closeDemoModal, 2200);
+            return;
+        }
+
         if (els.demoFormSubmit) { els.demoFormSubmit.disabled = true; els.demoFormSubmit.classList.add('pending'); }
         setDemoStatus('Sending…', null);
 
@@ -448,6 +462,17 @@ window.TF = window.TF || {};
         return typing;
     }
 
+    const SCRIPTED = [
+        [/price|cost|quote|book|demo|call|contact/i, 'Demo mode: nothing is sent from here. To discuss a real project, book a call at https://aimagyn.com/'],
+        [/kpi|number|figure|throughput|uptime|otif/i, 'All figures in this showcase are simulated illustrations, not measured results.'],
+        [/tyre|tire|tread|3d|model/i, 'The 3D tyre is parametric and generated in the browser with an asymmetric touring tread; you can export it as OBJ.'],
+        [/flow|asrs|warehouse|logistic|pipeline/i, 'The simulation follows a tyre through storage, QC, labelling, palletising, loading and shipping in nine stages.']
+    ];
+    function scriptedReply(text) {
+        for (const [re, ans] of SCRIPTED) if (re.test(text)) return ans;
+        return 'This is a simulated assistant in demo mode. It can tell you about the tyre model, the logistics flow, or the simulated figures. To talk to a person, book a call at https://aimagyn.com/';
+    }
+
     async function handleChatSubmit(e) {
         e.preventDefault();
         if (!els.chatInput) return;
@@ -459,6 +484,17 @@ window.TF = window.TF || {};
         els.chatInput.disabled = true;
         if (els.chatSend) els.chatSend.disabled = true;
         const typingEl = showTyping();
+
+        if (!LIVE) {
+            window.setTimeout(() => {
+                if (typingEl) typingEl.remove();
+                appendChatMessage('assistant', scriptedReply(text));
+                els.chatInput.disabled = false;
+                if (els.chatSend) els.chatSend.disabled = false;
+                els.chatInput.focus();
+            }, 500);
+            return;
+        }
 
         try {
             const res = await fetch(CHATBOT_URL, {

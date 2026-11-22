@@ -1,6 +1,6 @@
 /* ============================================================
    TYREFLOW — TYRE GEOMETRY ENGINE
-   Parametric tyre generation with Aures tread pattern
+   Parametric tyre generation with asymmetric touring tread pattern
    ============================================================ */
 window.TF = window.TF || {};
 
@@ -34,8 +34,8 @@ window.TF = window.TF || {};
         return x * x * (3 - 2 * x);
     }
 
-    // ---------- Aures Tread Displacement ----------
-    function getAuresDisplacement(ny, theta, N) {
+    // ---------- Asymmetric Touring Tread Displacement ----------
+    function getTreadDisplacement(ny, theta, N) {
         let absNy = Math.abs(ny);
         if (absNy > 0.85) return 0.0;
         let edgeFade = 1.0 - smoothstep(0.70, 0.85, absNy);
@@ -137,7 +137,7 @@ window.TF = window.TF || {};
             if (currentRadius > rimRadius + 1.0) {
                 let ny = Math.max(-1.0, Math.min(1.0, y / (w / 2)));
                 let theta = Math.atan2(z, x);
-                let depth = getAuresDisplacement(ny, theta, N);
+                let depth = getTreadDisplacement(ny, theta, N);
                 if (depth > 0) {
                     let dirX = x / currentRadius;
                     let dirZ = z / currentRadius;
@@ -164,6 +164,6 @@ window.TF = window.TF || {};
         smoothstep,
         makeStorageTyreGeo,
         generateTyreGeometry,
-        getAuresDisplacement
+        getTreadDisplacement
     };
 })();

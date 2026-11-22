@@ -161,7 +161,7 @@ sliders `#param-radius|width|rim|tread|count`, labels `#val-*`, `#export-btn`.
 `main.js` (Agent B) calls into the other modules; keep these signatures.
 
 **TF.tyre** (Agent A) — unchanged public shape:
-`rubberMaterial, pcrSizes, FLOW_SPEC, FLOW_TYRE_GEO, makeStorageTyreGeo, generateTyreGeometry, getAuresDisplacement, smoothstep`
+`rubberMaterial, pcrSizes, FLOW_SPEC, FLOW_TYRE_GEO, makeStorageTyreGeo, generateTyreGeometry, getTreadDisplacement, smoothstep`
 
 **TF.warehouse** (Agent A):
 - `buildWarehouse(scene)` — builds racks, cranes, QC/label/wrap/gate/dock geometry.
@@ -234,7 +234,7 @@ Keep milestone TITLES but sharpen to outcomes. Each stop: 1 title, 1–2 sentenc
 - Sub: quantified value prop (traceability %, throughput, labor reduction — use realistic
   demo numbers, clearly a showcase).
 - 3 value-prop cards (icon = inline SVG, NOT emoji): Traceability · Throughput · Uptime.
-- Primary CTA `#btn-book-demo` gold → `mailto:oussamabdi19@gmail.com?subject=TyreFlow%20Demo`
+- Primary CTA `#btn-book-demo` gold → `mailto:[owner-email]?subject=TyreFlow%20Demo`
   as placeholder (leave a `<!-- TODO: swap to Calendly/booking link -->`).
 - Keep the two existing stats but reframe as outcomes. Remove 🛞/🎬/▶ emoji → inline SVG.
 
@@ -437,7 +437,7 @@ files. No `CONTRACT-CHANGE-REQUEST` — the DOM/API/palette were all buildable a
 ### ui.js wiring (rebuilt for auto-play tour)
 - Caches all new refs; builds `#tour-timeline` ticks from `getTotalStops()`, tick click →
   `skipToStop(i)`. prev/next/togglePlay/endTour wired; CTAs' `href` set from a single
-  `DEMO_LINK` const (`mailto:oussamabdi19@gmail.com?subject=TyreFlow%20Demo`, TODO→booking link).
+  `DEMO_LINK` const (`mailto:[owner-email]?subject=TyreFlow%20Demo`, TODO→booking link).
 - Sets `onStopArrive=showTourStop`, `onTourEnd=onTourFinished`, `onProgress=setTourProgress`,
   `onPlayStateChange=setTourPlayState`. New-API calls guarded so nothing throws pre-integration.
 - **Mode switch:** `enterTourMode()` hides control panel + HUD + top bar, activates letterbox,
@@ -478,9 +478,9 @@ Both post to **published, live-tested** n8n webhooks — no more placeholders.
 
 **Demo Intake workflow:** Webhook → normalize (name/email/company/jobTitle/phone/message/source/
 sessionId, with `??` fallbacks for both `body.*` and top-level shapes) → IF name+email non-empty →
-Google Sheets append (spreadsheet `1xbOp7fIdTYzKYHJ4SewYyuiR0qqKCH5Ky44WYF5cnWY`, tab **Leads**,
-gid `443988587`, credential "Google Sheets oussama19") → Gmail notify `oussama.g@oussamalabs.com`
-→ Gmail auto-reply to the submitter (credential "oussamalabs") → Respond 200 `{success,message}`;
+Google Sheets append (spreadsheet `[sheet-id]`, tab **Leads**,
+gid `[gid]`, credential "[sheets-credential]") → Gmail notify `oussama.g@oussamalabs.com`
+→ Gmail auto-reply to the submitter (credential "[gmail-credential]") → Respond 200 `{success,message}`;
 false branch → Respond 400 `{success:false,error}`. All three side-effect nodes are
 `onError:'continueRegularOutput'` so one hiccup doesn't block the others or the response. Gotcha
 hit while building: the Google Sheets node's `defineBelow` column-mapper throws "Could not retrieve
@@ -489,7 +489,7 @@ row with `autoMapInputData` instead (it creates the header row from the incoming
 switch production nodes to `autoMapInputData` too so header names stay in sync.
 
 **Chatbot workflow:** Webhook → normalize `{sessionId, chatInput}` → AI Agent "TyreFlow Assistant"
-(OpenAI Chat Model, credential "Hassen API", model `gpt-5-mini`; Simple Memory keyed on
+(OpenAI Chat Model, credential "[llm-credential]", model `gpt-5-mini`; Simple Memory keyed on
 `nodeJson(webhookTrigger,'body.sessionId')`; one tool, **Log Qualified Lead** — an HTTP Request
 Tool that POSTs `fromAi()`-populated name/email/company/jobTitle/message + `source:'tyreflow-
 chatbot'` + the same sessionId straight at the Demo Intake webhook above, so a lead captured
